@@ -1,7 +1,3 @@
-vazy t'es trop nul
-
-voila ce que je voulais (améliore et met en forme) : 
-
 # A05:2021-Security Misconfiguration
 
 ## Intro
