@@ -204,3 +204,173 @@ sudo ss -K dst 127.0.0.1 dport = 8081 || true
 - Effet final : **dégradation** mesurable mais **pas de panne totale**.
 
 **Lecture recommandée** : régler timeouts côté proxy/serveur, limiter le nombre de connexions par IP, activer request body rate‑limit et protéger les files d’attente (worker limits, `KeepAliveTimeout`, `RequestReadTimeout`, QoS réseau).
+
+# Corrections pour empêcher l’attaque
+
+**Objectif** : empêcher que des requêtes **Transfer-Encoding: chunked** malformées ou lentes immobilisent les workers et épuisent les ressources.  
+**Approche** : durcissement **Apache**, modules **anti-DoS/WAF**, **rate-limit** réseau, réglages **noyau**, ou **reverse proxy** dédié.
+
+## 1) Apache — `mod_reqtimeout` (limiter lecture header/body)
+```bash
+sudo apt update
+sudo apt install -y apache2
+sudo a2enmod reqtimeout
+```
+`/etc/apache2/mods-enabled/reqtimeout.conf` :
+```apache
+<IfModule reqtimeout_module>
+  RequestReadTimeout header=5-10,minrate=500
+  RequestReadTimeout body=10,minrate=500
+</IfModule>
+```
+Ajuster KeepAlive et workers :
+```apache
+KeepAlive On
+MaxKeepAliveRequests 100
+KeepAliveTimeout 2
+
+<IfModule mpm_prefork_module>
+    StartServers 2
+    MinSpareServers 2
+    MaxSpareServers 5
+    ServerLimit 150
+    MaxRequestWorkers 150
+    MaxConnectionsPerChild 1000
+</IfModule>
+```
+```bash
+sudo systemctl reload apache2
+```
+
+## 2) `mod_evasive` (rafales)
+```bash
+sudo apt install -y libapache2-mod-evasive
+sudo a2enmod evasive
+```
+`/etc/apache2/mods-available/evasive.conf` :
+```apache
+<IfModule mod_evasive20.c>
+    DOSHashTableSize 3097
+    DOSPageCount 20
+    DOSSiteCount 300
+    DOSPageInterval 1
+    DOSSiteInterval 1
+    DOSBlockingPeriod 600
+    DOSEmailNotify you@example.com
+    DOSLogDir /var/log/apache2/mod_evasive
+</IfModule>
+```
+```bash
+sudo mkdir -p /var/log/apache2/mod_evasive
+sudo chown -R www-data:www-data /var/log/apache2/mod_evasive
+sudo systemctl reload apache2
+```
+
+## 3) `mod_security` (WAF, règles simples)
+```bash
+sudo apt install -y libapache2-mod-security2
+sudo a2enmod security2
+```
+`/etc/modsecurity/modsecurity.conf.d/zz_custom_rules.conf` :
+```apache
+SecRule REQUEST_HEADERS:Transfer-Encoding "chunked"  "id:100001,phase:1,deny,log,msg:'Chunked transfer blocked (policy)',severity:2"
+
+SecRequestBodyLimit 1048576
+SecRequestBodyInMemoryLimit 131072
+```
+```bash
+sudo systemctl reload apache2
+```
+
+## 4) Réseau local — `iptables` rate-limit (port 8081)
+```bash
+sudo iptables -N RATE_LIMIT_8081 2>/dev/null || true
+sudo iptables -F RATE_LIMIT_8081
+sudo iptables -A RATE_LIMIT_8081 -m conntrack --ctstate NEW -m limit --limit 10/min --limit-burst 20 -j RETURN
+sudo iptables -A RATE_LIMIT_8081 -j DROP
+sudo iptables -I INPUT -p tcp --dport 8081 -j RATE_LIMIT_8081
+```
+Rollback :
+```bash
+sudo iptables -D INPUT -p tcp --dport 8081 -j RATE_LIMIT_8081
+sudo iptables -F RATE_LIMIT_8081
+sudo iptables -X RATE_LIMIT_8081
+```
+Variante :
+```bash
+sudo ufw limit proto tcp from any to any port 8081
+```
+
+## 5) Noyau — tuning TCP
+`/etc/sysctl.d/99-dos-hardening.conf` :
+```conf
+net.ipv4.tcp_fin_timeout = 30
+net.ipv4.tcp_tw_reuse = 1
+net.ipv4.tcp_max_syn_backlog = 2048
+net.core.somaxconn = 1024
+```
+```bash
+sudo sysctl --system
+```
+
+## 6) Reverse proxy dédié (si docker-proxy limitant)
+`/etc/nginx/conf.d/bwapp.conf` :
+```nginx
+upstream bwapp { server 127.0.0.1:8081; }
+
+server {
+    listen 8081;
+    server_name localhost;
+
+    client_header_timeout 5s;
+    client_body_timeout 10s;
+    send_timeout 10s;
+    lingering_close off;
+
+    location / {
+        proxy_pass http://bwapp;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_connect_timeout 3s;
+        proxy_read_timeout 10s;
+        proxy_send_timeout 10s;
+    }
+}
+```
+```bash
+sudo apt install -y nginx
+sudo systemctl enable --now nginx
+sudo systemctl reload nginx
+```
+
+## 7) Tests de validation
+```bash
+# Connexions ouvertes
+sudo ss -tanp | grep ':8081'
+sudo lsof -nP -iTCP:8081
+
+# Journaux
+sudo tail -n 200 /var/log/apache2/error.log
+sudo tail -n 200 /var/log/apache2/mod_evasive.log
+sudo tail -n 200 /var/log/modsec_audit.log
+
+# Réactivité applicative
+time curl -s -o /dev/null -w '%{http_code} %{time_total}
+' http://127.0.0.1:8081/portal.php
+```
+
+## 8) Rollback rapide
+```bash
+sudo a2dismod reqtimeout evasive security2
+sudo systemctl reload apache2
+sudo iptables -D INPUT -p tcp --dport 8081 -j RATE_LIMIT_8081 || true
+sudo iptables -F RATE_LIMIT_8081 || true
+sudo iptables -X RATE_LIMIT_8081 || true
+sudo systemctl stop nginx || true
+```
+
+## 9) Points d’attention
+- **`mod_reqtimeout` + `KeepAliveTimeout`** : principaux leviers contre **slow-body/chunk**.  
+- **`mod_security` / `mod_evasive`** : réduction de surface, gestion de rafales.  
+- **Reverse proxy** recommandé pour **timeouts** et **rate-limits** fins.  
+- Tests en environnement non-prod, **surveillance CPU/mémoire/swap** pendant essais.
