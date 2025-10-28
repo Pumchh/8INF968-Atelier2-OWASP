@@ -10,14 +10,14 @@ Objectif : vérifier si le changement de mot de passe peut être effectué sans 
 
 Preuve
 - Requête initiale :  
-  ![Captcha](Captcha1.png)  
+  ![Captcha](8INF968-Atelier2-OWASP\A04 - InsecureDesign\Captcha1.png)  
   (formulaire + param step=2 et champs mot de passe)
 
 - Requête modifiée via Burp (on force le step et on soumet) :  
-  ![Captcha](Captcha2.png)
+  ![Captcha](8INF968-Atelier2-OWASP\A04 - InsecureDesign\Captcha2.png)
 
 - Résultat : mot de passe modifié sans validation du captcha :  
-  ![Captcha](Captcha3.png)
+  ![Captcha](8INF968-Atelier2-OWASP\A04 - InsecureDesign\Captcha3.png)
 
 ### Analyse
 - La logique se fie à des paramètres envoyés côté client (step) et/ou n’effectue pas de vérification serveur du token captcha.
@@ -28,9 +28,6 @@ Preuve
 2. Stocker en session un drapeau captcha_verified uniquement après vérification réussie.  
 3. Ajouter un CSRF token sur le formulaire et invalider captcha_verified après usage. Un CSRF token est un jeton unique généré par le serveur et inclus dans les formulaires ou requêtes pour vérifier que l’action provient bien de l’utilisateur légitime, empêchant ainsi les attaques de type Cross-Site Request Forgery (CSRF).
 4. Journaliser et appliquer un rate-limit sur l’endpoint.
-
-### Extrait de code pour remédiation
-Pour remédier à cette faille, il va falloir faire une vérification côté serveur pour valider la résolution du Captcha.
 
 ```php
 // Vérif token captcha côté serveur
@@ -58,16 +55,16 @@ Objectif : vérifier si, connecté en tant que Test, on peut modifier le secret 
 
 Preuve
 - Création utilisateur Test :  
-  ![bWapp](bWapp1.png)
+  ![bWapp](8INF968-Atelier2-OWASP\A04 - InsecureDesign\bWapp1.png)
 
 - Envoi de la requête de modification (param user ou uid) :  
-  ![bWapp](bWapp2.png)
+  ![bWapp](8INF968-Atelier2-OWASP\A04 - InsecureDesign\bWapp2.png)
 
 - Modification du paramètre pour viser un autre compte et envoi :  
-  ![bWapp](bWapp3.png)
+  ![bWapp](8INF968-Atelier2-OWASP\A04 - InsecureDesign\bWapp3.png)
 
 - Résultat : secret modifié pour l’autre compte :  
-  ![bWapp](bWapp4.png)
+  ![bWapp](8INF968-Atelier2-OWASP\A04 - InsecureDesign\bWapp4.png)
 
 
 ### Analyse
@@ -78,8 +75,6 @@ Preuve
 1. Toujours vérifier côté serveur que l’utilisateur courant est propriétaire ou a le rôle nécessaire avant lecture/modification.  
 2. Centraliser la logique d’autorisation (middleware / fonction authorize).  
 3. Logguer les accès refusés et envisager IDs non-prévisibles (UUID) en complément.
-
-Extrait PHP
 
 ```php
 session_start();
