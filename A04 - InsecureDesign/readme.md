@@ -16,7 +16,7 @@ Preuve
 - Requête modifiée via Burp (on force le step et on soumet) :  
   ![Captcha](Captcha2.png)
 
-- Résultat : mot de passe modifié sans validation du captcha :  
+- Résultat : mot de passe modifxié sans validation du captcha :  
   ![Captcha](Captcha3.png)
 
 ### Analyse
