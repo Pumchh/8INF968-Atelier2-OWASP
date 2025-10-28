@@ -10,14 +10,14 @@ Objectif : vérifier si le changement de mot de passe peut être effectué sans 
 
 Preuve
 - Requête initiale :  
-  ![Captcha](Captcha1.png)  
+  ![Captcha](8INF968-Atelier2-OWASP\A04 - InsecureDesign\Captcha1.png)  
   (formulaire + param step=2 et champs mot de passe)
 
 - Requête modifiée via Burp (on force le step et on soumet) :  
-  ![Captcha](Captcha2.png)
+  ![Captcha](8INF968-Atelier2-OWASP\A04 - InsecureDesign\Captcha2.png)
 
 - Résultat : mot de passe modifié sans validation du captcha :  
-  ![Captcha](Captcha3.png)
+  ![Captcha](8INF968-Atelier2-OWASP\A04 - InsecureDesign\Captcha3.png)
 
 ### Analyse
 - La logique se fie à des paramètres envoyés côté client (step) et/ou n’effectue pas de vérification serveur du token captcha.
@@ -58,16 +58,16 @@ Objectif : vérifier si, connecté en tant que Test, on peut modifier le secret 
 
 Preuve
 - Création utilisateur Test :  
-  ![bWapp](bWapp1.png)
+  ![bWapp](8INF968-Atelier2-OWASP\A04 - InsecureDesign\bWapp1.png)
 
 - Envoi de la requête de modification (param user ou uid) :  
-  ![bWapp](bWapp2.png)
+  ![bWapp](8INF968-Atelier2-OWASP\A04 - InsecureDesign\bWapp2.png)
 
 - Modification du paramètre pour viser un autre compte et envoi :  
-  ![bWapp](bWapp3.png)
+  ![bWapp](8INF968-Atelier2-OWASP\A04 - InsecureDesign\bWapp3.png)
 
 - Résultat : secret modifié pour l’autre compte :  
-  ![bWapp](bWapp4.png)
+  ![bWapp](8INF968-Atelier2-OWASP\A04 - InsecureDesign\bWapp4.png)
 
 
 ### Analyse
