@@ -69,7 +69,7 @@ On remarque qu'il s'agit simplement d'une incrémentation. Donc si on se connect
 #### Avant
 
 Voici le code existant :
-```
+```java
 @PostMapping("/reset-password-request")
 public ResponseEntity<?> resetPasswordRequest(@RequestParam String email) {
     User user = userRepository.findByEmail(email);
@@ -89,7 +89,7 @@ Le problème vient du fait quel’application fait confiance à l’email fourni
 
 #### Après correction
 
-```
+```java
 @PostMapping("/reset-password-request")
 public ResponseEntity<?> resetPasswordRequest(@RequestParam String email) {
     User user = userRepository.findByEmail(email);
@@ -119,7 +119,7 @@ Dans la version corrigée, l'application ne fait plus confiance à l'e-mail four
 
 Voici le code au départ, on retrouve bien qu'il s'agit d'une incrémentation suivie d'un hash MD5, ce qui est facilement reconnaissable. On peut facilement deviner les autres SessionID
 
-```
+```php
 $cookie_value = md5($_SESSION['last_session_id_high']);
 	setcookie("dvwaSession", $cookie_value, time()+3600, "/vulnerabilities/weak_id/", $_SERVER['HTTP_HOST'], false, false);
 ```
@@ -127,7 +127,7 @@ $cookie_value = md5($_SESSION['last_session_id_high']);
 #### Après correction
 
 Voici un code pour avoir un SessionID impossible à deviner
-```
+```php
 $cookie_value = sha1(mt_rand() . time() . "Impossible");
 	setcookie("dvwaSession", $cookie_value, time()+3600, "/vulnerabilities/weak_id/", $_SERVER['HTTP_HOST'], true, true);
 ```
