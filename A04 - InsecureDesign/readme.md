@@ -29,9 +29,6 @@ Preuve
 3. Ajouter un CSRF token sur le formulaire et invalider captcha_verified après usage. Un CSRF token est un jeton unique généré par le serveur et inclus dans les formulaires ou requêtes pour vérifier que l’action provient bien de l’utilisateur légitime, empêchant ainsi les attaques de type Cross-Site Request Forgery (CSRF).
 4. Journaliser et appliquer un rate-limit sur l’endpoint.
 
-### Extrait de code pour remédiation
-Pour remédier à cette faille, il va falloir faire une vérification côté serveur pour valider la résolution du Captcha.
-
 ```php
 // Vérif token captcha côté serveur
 session_start();
@@ -78,8 +75,6 @@ Preuve
 1. Toujours vérifier côté serveur que l’utilisateur courant est propriétaire ou a le rôle nécessaire avant lecture/modification.  
 2. Centraliser la logique d’autorisation (middleware / fonction authorize).  
 3. Logguer les accès refusés et envisager IDs non-prévisibles (UUID) en complément.
-
-Extrait PHP
 
 ```php
 session_start();
