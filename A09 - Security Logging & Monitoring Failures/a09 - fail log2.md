@@ -1,9 +1,10 @@
-# Rapport d’audit — bWAPP : A09:2021 Security Logging & Monitoring Failures
+# A09:2021 – Security Logging and Monitoring Failures
 
-**Environnement :**  
-VM Ubuntu avec Docker.  
-Container cible : `bwapp` (image `hackersploit/bwapp-docker:latest`, port 8081).  
-Marqueur utilisé : `LOGTEST-20251026-182903`.  
+## Introduction
+Cette catégorie regroupe les failles liées à l’absence ou à l’insuffisance de journalisation et de surveillance des activités de sécurité dans les applications et serveurs.
+Elle occupe cette position car la détection et la réponse aux attaques sont souvent négligées, bien que cruciales pour la traçabilité, la visibilité et la gestion des incidents.
+Avec un taux d’incidence moyen de 6.51%, un total de 53 615 occurrences et 242 CVE recensées, cette vulnérabilité reste fréquente malgré sa criticité.
+Elle découle souvent d’événements non enregistrés (comme les échecs de connexion) ou de logs non surveillés, empêchant la détection rapide d’intrusions actives.
 
 ---
 
