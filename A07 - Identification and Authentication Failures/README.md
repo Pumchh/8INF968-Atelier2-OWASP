@@ -1,4 +1,4 @@
-# Identification and Authenication
+# Identification and Authentication
 
 ## Présentation
 
