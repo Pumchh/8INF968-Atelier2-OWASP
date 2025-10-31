@@ -103,6 +103,8 @@ XStream (versions ≤ 1.4.6) permettait la désérialisation de types arbitraire
 
 <img src="./screens/a6-5.png" width="600">
 
+<img src="./screens/a6-5.png" width="600">
+
 ## CORRECTION (technique + procédurale)
 **Actions techniques**
 
@@ -146,6 +148,7 @@ A06 est essentiellement un problème de gestion des composants : connaitre ce qu
 Combiner approches : mise à jour technique (patch), durcissement applicatif (whitelist/validation/échappement), et gouvernance (SCA/CI/SBOM/CSP/SRI).
 
 Processus recommandé pour une organisation : inventaire continu (SBOM), alerting CVE, triage basé sur risque, calendrier de patching (urgences prioritaires), tests de non-régression et contrôle d’accès minimal (least privilege).
+
 
 
 
