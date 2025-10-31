@@ -132,7 +132,7 @@ def index():
             try:
                 response = requests.get(url, timeout=5, allow_redirects=False)
                 html = response.text
-            except Exception as e:
+            except Exception as e:qzdqzdqzdqzd
                 html = "Erreur"
 
     return render_template('index.html', url=url, html=html)
