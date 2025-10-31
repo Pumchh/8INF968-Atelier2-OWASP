@@ -44,6 +44,7 @@ Après (patch) : capture montrant $.ui.version = 1.14.1 et absence d’alerte lo
 
 <img src="./screens/a6-2.png" width="600">
 
+
 ## CORRECTION (technique + procédurale)
 **Actions immédiates**  
 1. Mettre à jour la dépendance jquery-ui vers une version corrigée (dernière disponible) ainsi que la version de jQuery.
@@ -157,6 +158,7 @@ A06 est essentiellement un problème de gestion des composants : connaitre ce qu
 Combiner approches : mise à jour technique (patch), durcissement applicatif (whitelist/validation/échappement), et gouvernance (SCA/CI/SBOM/CSP/SRI).
 
 Processus recommandé pour une organisation : inventaire continu (SBOM), alerting CVE, triage basé sur risque, calendrier de patching (urgences prioritaires), tests de non-régression et contrôle d’accès minimal (least privilege).
+
 
 
 
