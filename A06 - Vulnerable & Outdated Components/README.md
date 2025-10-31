@@ -137,7 +137,7 @@ xstream.allowTypes(new Class[]{com.myapp.model.Contact.class, com.myapp.model.Ad
 
 4. Éviter les transformations automatiques de flux non fiables ; si possible, utiliser des bibliothèques de parsing explicitement sûres (JAXB avec classes contrôlées, parsers JSON typesafe).
 
-**Mesures procédurales**
+**Mesures procédurales (théorique - pas tester)**
 
 - Intégrer SCA en CI (Dependency-Check / Snyk / Dependabot) pour détecter rapidement CVE.
 
@@ -146,8 +146,6 @@ xstream.allowTypes(new Class[]{com.myapp.model.Contact.class, com.myapp.model.Ad
 - Virtual patch : si mise à jour impossible immédiatement, utiliser WAF / règles de détection pour bloquer patterns connus (mesure temporaire).
 
 - Test : automatiser tests d’intégration pour valider que la whitelist bloque la désérialisation de types non autorisés.
-
-**Vérification après correction**
 
 - Regénérer dependency-check → la CVE liée à XStream doit disparaître.
 
@@ -160,6 +158,7 @@ A06 est essentiellement un problème de gestion des composants : connaitre ce qu
 Combiner approches : mise à jour technique (patch), durcissement applicatif (whitelist/validation/échappement), et gouvernance (SCA/CI/SBOM/CSP/SRI).
 
 Processus recommandé pour une organisation : inventaire continu (SBOM), alerting CVE, triage basé sur risque, calendrier de patching (urgences prioritaires), tests de non-régression et contrôle d’accès minimal (least privilege).
+
 
 
 
