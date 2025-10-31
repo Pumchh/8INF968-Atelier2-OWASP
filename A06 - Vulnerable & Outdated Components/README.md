@@ -115,6 +115,8 @@ La capture suivante montre le résultat pédagogique dans WebGoat lorsqu’un te
 Capture WebGoat : message You successfully tried to exploit the CVE-2013-7285 vulnerability + Logs montrant l’exception ou tentative d’exécution (ex. Cannot run program "calc.exe" – preuve que la commande a été tentée côté serveur)
 
 <img src="./screens/a6-5.png" width="600">
+
+
 ## CORRECTION (technique + procédurale)
 **Actions techniques**
 
@@ -158,6 +160,7 @@ A06 est essentiellement un problème de gestion des composants : connaitre ce qu
 Combiner approches : mise à jour technique (patch), durcissement applicatif (whitelist/validation/échappement), et gouvernance (SCA/CI/SBOM/CSP/SRI).
 
 Processus recommandé pour une organisation : inventaire continu (SBOM), alerting CVE, triage basé sur risque, calendrier de patching (urgences prioritaires), tests de non-régression et contrôle d’accès minimal (least privilege).
+
 
 
 
