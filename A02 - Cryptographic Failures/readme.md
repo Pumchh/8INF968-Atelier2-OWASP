@@ -1,5 +1,3 @@
-Voici le markdown demandé.
-
 # A02 - Cryptographic Failures
 
 ## Intro
