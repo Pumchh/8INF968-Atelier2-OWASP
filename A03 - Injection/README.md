@@ -29,7 +29,7 @@ L'objectif est d'obtenir tous les mots de passe. Mais pour commencer simplement,
 
 Le ```'``` permet de finir le ```id='```. Comme il est vide, ce sera faux, mais on va contourner en ajoutant ```or 1=1``` qui est toujours vrai. Enfin ```#``` va permettre d'ignorer les potentiels restrictions qui suivent.
 
-Nous allons maintenat chercher les mots de passe. Malheureusement, nous ne connaissons pas l'architecture de la base de donnée. Nous allons donc commencer par chercher les tables.
+Nous allons maintenant chercher les mots de passe. Malheureusement, nous ne connaissons pas l'architecture de la base de donnée. Nous allons donc commencer par chercher les tables.
 
 #### b. Injection pour obtenir les noms de toutes les tables
 
