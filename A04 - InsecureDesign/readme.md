@@ -6,18 +6,20 @@ Ici j’ai testé deux cas en labo : bypass de CAPTCHA (DVWA) et IDOR / modifica
 
 ## Test 1 — Bypass du CAPTCHA (DVWA)
 
-Objectif : vérifier si le changement de mot de passe peut être effectué sans résoudre le captcha.
+L'objectif va être de vérifier si le changement de mot de passe peut être effectué sans résoudre le captcha.
 
-Preuve
+
+### Pratique 
+
 - Requête initiale :  
-  ![Captcha](8INF968-Atelier2-OWASP\A04 - InsecureDesign\Captcha1.png)  
+  ![Captcha](Captcha1.png)  
   (formulaire + param step=2 et champs mot de passe)
 
 - Requête modifiée via Burp (on force le step et on soumet) :  
-  ![Captcha](8INF968-Atelier2-OWASP\A04 - InsecureDesign\Captcha2.png)
+  ![Captcha](Captcha2.png)
 
 - Résultat : mot de passe modifié sans validation du captcha :  
-  ![Captcha](8INF968-Atelier2-OWASP\A04 - InsecureDesign\Captcha3.png)
+  ![Captcha](Captcha3.png)
 
 ### Analyse
 - La logique se fie à des paramètres envoyés côté client (step) et/ou n’effectue pas de vérification serveur du token captcha.
@@ -47,55 +49,27 @@ $_SESSION['captcha_verified'] = true;
 
 La correction permet lors de l'envoie de la requête de changement de mot de passe sans token ou avec token invalide d'envoyer une réponse 403 (accès interdit) et de vérifier que l’action ne passe que si captcha_verified en session est présent et valide ainsi que le CSRF soit bon.
 
+## Test 2 — File Upload (DVWA)
+
+L'objectif va être d'upload une backdoor sur le site.
+
+Pour cela nous allons utiliser weevely et la partie File Upload du site DVWA.
+
+### Pratique
+
+Il faut commencer par générer la backdoor avec la commande ```weevely generate backdoor backdoor.php```
+
+Ensuite il faut l'upload sur le site :
+![alt text](image-1.png)
+
+Enfin la connexion à la backdoor peut être effectué avec la commande 
+```weevely http://127.0.0.1:4280/dvwa/hackable/uploads/backdoor.php backdoor```
 
 
-## Test 2 — IDOR / modification d’un autre utilisateur (bWAPP)
 
-Objectif : vérifier si, connecté en tant que Test, on peut modifier le secret d’un autre utilisateur en changeant le paramètre de requête.
-
-Preuve
-- Création utilisateur Test :  
-  ![bWapp](8INF968-Atelier2-OWASP\A04 - InsecureDesign\bWapp1.png)
-
-- Envoi de la requête de modification (param user ou uid) :  
-  ![bWapp](8INF968-Atelier2-OWASP\A04 - InsecureDesign\bWapp2.png)
-
-- Modification du paramètre pour viser un autre compte et envoi :  
-  ![bWapp](8INF968-Atelier2-OWASP\A04 - InsecureDesign\bWapp3.png)
-
-- Résultat : secret modifié pour l’autre compte :  
-  ![bWapp](8INF968-Atelier2-OWASP\A04 - InsecureDesign\bWapp4.png)
-
-
-### Analyse
-- L’application accepte un identifiant fourni par le client sans vérifier l’ownership ou les droits.
-- Erreur de conception : contrôles d’accès object-level manquants.
-
-### Remédiation
-1. Toujours vérifier côté serveur que l’utilisateur courant est propriétaire ou a le rôle nécessaire avant lecture/modification.  
-2. Centraliser la logique d’autorisation (middleware / fonction authorize).  
-3. Logguer les accès refusés et envisager IDs non-prévisibles (UUID) en complément.
-
-```php
-session_start();
-$current = $_SESSION['user_id']; // id connecté
-$target = $_POST['user_id'] ?? null;
-
-// récupérer $owner_id depuis la BDD pour la ressource ciblée
-// exemple simplifié : $owner_id = get_owner_id($target);
-if ($owner_id !== $current && $_SESSION['role'] !== 'admin') {
-    http_response_code(403);
-    echo "403 Forbidden";
-    exit;
-}
-// sinon autoriser la modification
-```
-
-En tant que User A, le fait de tenter de modifier la ressource de User B fais que le serveur renvoie 403 et la ressource reste inchangée.
 
 
 ## Conclusion
-Les deux démonstrations ont la même racine : on fait confiance au client (paramètres / états) au lieu d’imposer toutes les vérifications côté serveur.  
-Les remédiations consistent en valider côté serveur (captcha, ownership), utiliser CSRF tokens, centraliser les checks d’autorisation et journaliser les tentatives.
+
 
 
