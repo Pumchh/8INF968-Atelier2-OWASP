@@ -44,7 +44,7 @@ Avant (version vulnérable) : capture montrant $.ui.version = 1.10.x/1.11.x et l
 
 Après (patch) : capture montrant $.ui.version = 1.12.x+ et absence d’alerte lors du même test.  
 
-
+<img src="./screens/a6-1.png" width="600">
 
 ## CORRECTION (technique + procédurale)
 *Actions immédiates*
@@ -165,6 +165,7 @@ Captures écran « before/after » pour jQuery closeText.
 Snippets de correction (JS et Java) fournis ci-dessus.
 
 Brève procédure d’exécution pour reproduire en labo (commande Docker + commandes dependency-check, retire, etc.).
+
 
 
 
