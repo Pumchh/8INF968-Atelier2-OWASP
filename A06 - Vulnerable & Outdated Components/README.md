@@ -1,26 +1,38 @@
 # A06:2021 — VULNERABLE AND OUTDATED COMPONENTS
-## Introduction et Contexte
-Aujourd’hui, une énorme quantité des outils que nous consommons sur Internet est open-source. Si cela présente beaucoup d’avantages (gratuité, transparence, rapidité d’adoption), cela entraîne aussi des risques :
-- dépendances transitives et arborescence de bibliothèques difficiles à inventorier ;
-- composants non maintenus ou publiés avec des versions vulnérables ;
-- différences possibles entre le code source publié et le binaire distribué ;
-- multiplicité des registres / packaging systems (npm, Maven, NuGet, PyPI, etc.) et modèles de versionnement.
+**Définition (A06)**
+A06 concerne les risques liés à l’utilisation de composants logiciels vulnérables, obsolètes ou mal entretenus (bibliothèques, frameworks, modules, images conteneurs, OS, runtimes). Un composant vulnérable intégré à une application peut permettre à un attaquant d’exploiter une faille dans ce composant et d’obtenir un impact élevé (RCE, fuite de données, élévation de privilèges), même si le code applicatif lui-même est correct.
 
-Quelques données illustratives (contexte Web / open source) :
-- 10+ millions de dépôts sur GitHub.
-- ~1 million de dépôts historiques sur SourceForge.
-- Des milliers de dépôts binaires publics (artéfacts).
+**Pourquoi c’est critique**
 
-Ces chiffres expliquent pourquoi la surface d’attaque liée aux composants tiers est large et difficile à maîtriser.
+Les composants tiers s’exécutent souvent avec les mêmes privilèges que l’application : une vulnérabilité dans une bibliothèque peut devenir une porte d’entrée complète.
 
-*Objectif de cette section*
-Montrer, sur un environnement de test contrôlé (WebGoat Docker) deux vulnérabilités représentatives de A06:2021, fournir pour chacune :
+L’écosystème logiciel moderne est fortement dépendant : la plupart des applications importent des dizaines voire des centaines de dépendances directes et transverses (transitives).
 
-- une démonstration pédagogique (preuve / capture) ;
-- les corrections techniques et organisationnelles ;
-- la manière de vérifier la correction (scans SCA, tests).
+Les vulnérabilités peuvent être publiées après déploiement (CVE) et rester non corrigées longtemps si le processus de mise à jour est déficient.
 
-Cadre de test : WebGoat (image Docker fournie par le cours). Toutes les démos sont réalisées en VM de labo isolée — ne pas reproduire sur des systèmes en production.
+Certains composants sont abandonnés (unmaintained) : pas de patches fournis → exposition prolongée.
+
+**Quelques données & contexte (illustratif)**
+
+Plus de 10 millions de dépôts sur GitHub.
+
+Environ 1 million de dépôts historiques sur SourceForge.
+
+Des milliers de dépôts binaires publics (artéfacts) sur divers registries.
+Ces chiffres montrent l’ampleur et la fragmentation de l’écosystème open-source : beaucoup d’acteurs, de registres et de modèles de packaging coexistent, ce qui rend l’inventaire et le contrôle difficiles.
+
+**Conséquences opérationnelles**
+
+Difficulté à inventorier toutes les dépendances (directes + transitives).
+
+Risque d’importer des paquets malveillants (typosquatting, malicious publish).
+
+Risque d’exécuter des binaires dont le code source ne correspond pas au binaire publié.
+
+Multiples systèmes de packaging (npm, Maven, NuGet, PyPI, etc.) et formats (tar, wheel, jars, images Docker) compliquent la gouvernance.
+
+**Cadre de test :**  
+WebGoat (image Docker utilisée en labo). Toutes les manipulations sont réalisées en environnement isolé et contrôlé — ne pas reproduire les mêmes actions sur des systèmes de production.
 
 ## PREMIÈRE VULNÉRABILITÉ — `jquery-ui` closeText (XSS)
 ### Résumé
@@ -159,3 +171,4 @@ Captures écran « before/after » pour jQuery closeText.
 Snippets de correction (JS et Java) fournis ci-dessus.
 
 Brève procédure d’exécution pour reproduire en labo (commande Docker + commandes dependency-check, retire, etc.).
+
