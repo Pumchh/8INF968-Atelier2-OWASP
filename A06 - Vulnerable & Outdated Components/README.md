@@ -92,16 +92,16 @@ XStream (versions ≤ 1.4.6) permettait la désérialisation de types arbitraire
 
 - Capture WebGoat : Démonstration cas normal + Listing des jars extraits du container montrant xstream-1.4.6.jar (ou version vulnérable).
 
-<img src="./screens/a6-4.png" width="600">
+<img src="./screens/a6-3.png" width="600">
 
 - Capture WebGoat : message You successfully tried to exploit the CVE-2013-7285 vulnerability + Logs montrant l’exception ou tentative d’exécution (ex. Cannot run program "calc.exe" – preuve que la commande a été tentée côté serveur)
 
-<img src="./screens/a6-3.png" width="600">
+<img src="./screens/a6-4.png" width="600">
 
 
 - Rapport dependency-check mappant xstream → CVE-2013-7285.
 
-<img src="./screens/a6-6.png" width="600">
+<img src="./screens/a6-5.png" width="600">
 
 ## CORRECTION (technique + procédurale)
 **Actions techniques**
@@ -146,6 +146,7 @@ A06 est essentiellement un problème de gestion des composants : connaitre ce qu
 Combiner approches : mise à jour technique (patch), durcissement applicatif (whitelist/validation/échappement), et gouvernance (SCA/CI/SBOM/CSP/SRI).
 
 Processus recommandé pour une organisation : inventaire continu (SBOM), alerting CVE, triage basé sur risque, calendrier de patching (urgences prioritaires), tests de non-régression et contrôle d’accès minimal (least privilege).
+
 
 
 
