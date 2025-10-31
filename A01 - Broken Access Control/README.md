@@ -2,7 +2,7 @@
 
 ## Présentation
 
-## Test 1 — IDOR / modification d’un autre utilisateur (WebGoat)
+## Test 1 — IDOR
 
 On récupère la requête POST
 ![alt text](image.png)
