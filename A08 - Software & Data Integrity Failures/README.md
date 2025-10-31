@@ -1,16 +1,16 @@
 # A08 — SOFTWARE & DATA INTEGRITY FAILURES
 
 ## Introduction et Contexte
-*Définition (A08)*
+**Définition (A08)**  
 A08 couvre les défaillances où le logiciel ou les données consommées ne peuvent pas être vérifiées quant à leur intégrité ou provenance. Cela inclut : artefacts mal signés, paquets compromis, builds non reproductibles, mais aussi données d’application (sessions, objets sérialisés, états de panier) acceptées sans vérification. L’impact peut aller d’une simple altération d’UI à une compromission complète de la chaîne d’approvisionnement ou une élévation de privilèges/RCE.
 
-*Pourquoi c’est critique*
+**Pourquoi c’est critique**
 
 Les erreurs d’intégrité permettent l’introduction de code ou d’état malveillant à un point d’exécution (client, serveur, CI, runtime).
 
 Elles sont difficiles à détecter sans mécanismes cryptographiques (signatures, HMAC, checksums vérifiés) ou garanties de provenance (SBOM, attestations).
 
-*Cadre de test (labs PortSwigger / WebSecurity Academy)*
+**Cadre de test (labs PortSwigger / WebSecurity Academy)**
 Les démonstrations et preuves qui suivent ont été réalisées sur des labs PortSwigger / WebSecurity Academy fournis en environnement isolé. Ces labs reproduisent deux catégories pratiques d’A08 :
 
 1. Insecure Deserialization — modification d’un objet sérialisé dans un cookie pour escalader des privilèges.
@@ -201,3 +201,4 @@ Captures Burp montrant l’envoi parallèle pour le lab Race Conditions, répons
 Extraits de logs / outputs de dependency-check si applicables.
 
 Snippets de code corrigés (HMAC JSON example, transaction SQL example).
+
