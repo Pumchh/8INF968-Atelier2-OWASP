@@ -10,8 +10,8 @@ Les erreurs d’intégrité permettent l’introduction de code ou d’état mal
 
 Elles sont difficiles à détecter sans mécanismes cryptographiques (signatures, HMAC, checksums vérifiés) ou garanties de provenance (SBOM, attestations).
 
-**Cadre de test (labs PortSwigger / WebSecurity Academy)**
-Les démonstrations et preuves qui suivent ont été réalisées sur des labs PortSwigger / WebSecurity Academy fournis en environnement isolé. Ces labs reproduisent deux catégories pratiques d’A08 :
+**Cadre de test**
+Les démonstrations et preuves qui suivent ont été réalisées sur des labs PortSwigger fournis en environnement isolé. Ces labs reproduisent deux catégories pratiques d’A08 :
 
 1. Insecure Deserialization — modification d’un objet sérialisé dans un cookie pour escalader des privilèges.
 
@@ -201,4 +201,5 @@ Captures Burp montrant l’envoi parallèle pour le lab Race Conditions, répons
 Extraits de logs / outputs de dependency-check si applicables.
 
 Snippets de code corrigés (HMAC JSON example, transaction SQL example).
+
 
