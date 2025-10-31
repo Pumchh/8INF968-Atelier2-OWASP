@@ -47,11 +47,11 @@ Après (patch) : capture montrant $.ui.version = 1.14.1 et absence d’alerte lo
 <img src="./screens/a6-2.png" width="600">
 
 ## CORRECTION (technique + procédurale)
-*Actions immédiates*
-1. Mettre à jour la dépendance jquery-ui vers une version corrigée (1.12.x ou la dernière disponible) et mettre à jour la version de jQuery si nécessaire (3.x).
+**Actions immédiates**  
+1. Mettre à jour la dépendance jquery-ui vers une version corrigée (dernière disponible) ainsi que la version de jQuery.
 2. Ne jamais insérer du HTML non fiable dans des options/widgets. Si la valeur vient d’un utilisateur, échaper avant insertion.
 
-*Exemple de code sécurisé (échappement)*
+**Exemple de code sécurisé (échappement)**  
 ```js
 // fonction d'échappement simple
 function escapeHtml(s) {
@@ -69,25 +69,17 @@ $(function(){
   $('#dialog').dialog({ closeText: safeCloseText });
 });
 ```
-Ou utiliser jQuery pour convertir en texte :
+Ou utiliser jQuery pour convertir en texte :  
 ```js
 var safeCloseText = $('<div/>').text(userInput).html();
 $('#dialog').dialog({ closeText: safeCloseText });
 ```
 
-*Mesures additionnelles recommandées*
-
-- SCA : ajouter npm audit, retire.js, OWASP Dependency-Check ou Snyk dans le pipeline pour détecter la version vulnérable automatiquement.
-
-- SRI + CSP : si vous chargez des libs via CDN, utiliser Subresource Integrity (SRI) et une Content Security Policy restrictive.
-
-- Process : inventaire des composants (SBOM), politique de mise à jour et triage CVE (urgent/haut/low), test de non-régression avant mise en prod.
-
 ## DEUXIÈME VULNÉRABILITÉ — Exploiting CVE-2013-7285 (XStream)
-### Résumé
+### Résumé  
 XStream (versions ≤ 1.4.6) permettait la désérialisation de types arbitraires à partir de flux XML/JSON. Un attaquant pouvant fournir du flux non-fiable pouvait faire recréer des instances de classes JDK dangereuses (ex. java.lang.ProcessBuilder, java.beans.EventHandler) conduisant potentiellement à exécution de code à distance (RCE). CVE-2013-7285 documente ce comportement.
 
-### Explication technique (niveau clair)
+### Explication technique (niveau clair)  
 - XStream.fromXML(xml) lit le XML et reconstruit des objets Java selon les informations de type contenues dans le flux.
 
 - Si la bibliothèque autorise des types arbitraires, un attaquant peut injecter un objet « handler » configuré pour appeler une méthode / créer un Process lors d’une invocation normale sur l’objet désérialisé.
@@ -98,16 +90,21 @@ XStream (versions ≤ 1.4.6) permettait la désérialisation de types arbitraire
 
 ### Preuve / screen
 
-- Capture WebGoat : message You successfully tried to exploit the CVE-2013-7285 vulnerability.
+- Capture WebGoat : Démonstration cas normal + Listing des jars extraits du container montrant xstream-1.4.6.jar (ou version vulnérable).
 
-- Logs montrant l’exception ou tentative d’exécution (ex. Cannot run program "calc.exe" – preuve que la commande a été tentée côté serveur).
+<img src="./screens/a6-4.png" width="600">
 
-- Listing des jars extraits du container montrant xstream-1.4.6.jar (ou version vulnérable).
+- Capture WebGoat : message You successfully tried to exploit the CVE-2013-7285 vulnerability + Logs montrant l’exception ou tentative d’exécution (ex. Cannot run program "calc.exe" – preuve que la commande a été tentée côté serveur)
+
+<img src="./screens/a6-3.png" width="600">
+
 
 - Rapport dependency-check mappant xstream → CVE-2013-7285.
 
+<img src="./screens/a6-6.png" width="600">
+
 ## CORRECTION (technique + procédurale)
-*Actions techniques*
+**Actions techniques**
 
 1. Mettre à jour XStream vers une version corrigée (vérifier la dernière version stable).
 
@@ -126,7 +123,7 @@ xstream.allowTypes(new Class[]{com.myapp.model.Contact.class, com.myapp.model.Ad
 
 4. Éviter les transformations automatiques de flux non fiables ; si possible, utiliser des bibliothèques de parsing explicitement sûres (JAXB avec classes contrôlées, parsers JSON typesafe).
 
-*Mesures procédurales*
+**Mesures procédurales**
 
 - Intégrer SCA en CI (Dependency-Check / Snyk / Dependabot) pour détecter rapidement CVE.
 
@@ -136,7 +133,7 @@ xstream.allowTypes(new Class[]{com.myapp.model.Contact.class, com.myapp.model.Ad
 
 - Test : automatiser tests d’intégration pour valider que la whitelist bloque la désérialisation de types non autorisés.
 
-*Vérification après correction*
+**Vérification après correction**
 
 - Regénérer dependency-check → la CVE liée à XStream doit disparaître.
 
@@ -148,23 +145,8 @@ A06 est essentiellement un problème de gestion des composants : connaitre ce qu
 
 Combiner approches : mise à jour technique (patch), durcissement applicatif (whitelist/validation/échappement), et gouvernance (SCA/CI/SBOM/CSP/SRI).
 
-Preuves à joindre pour le rendu : captures before/after (versions + comportement), rapports SCA (avant/after), extraits de logs, et snippets de code corrigés.
-
 Processus recommandé pour une organisation : inventaire continu (SBOM), alerting CVE, triage basé sur risque, calendrier de patching (urgences prioritaires), tests de non-régression et contrôle d’accès minimal (least privilege).
 
-## Annexes / Pièces à fournir avec le rapport (checklist)
-
-depcheck-report.html (scan before/after).
-
-npm audit / retire.js JSON reports (si applicables).
-
-docker logs webgoat extraits pour XStream leçon.
-
-Captures écran « before/after » pour jQuery closeText.
-
-Snippets de correction (JS et Java) fournis ci-dessus.
-
-Brève procédure d’exécution pour reproduire en labo (commande Docker + commandes dependency-check, retire, etc.).
 
 
 
