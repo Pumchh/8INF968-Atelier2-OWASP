@@ -24,21 +24,41 @@ Ces environnements sont conçus pédagogiquement : les payloads et manipulations
 
 L’application sérialise un objet User dans un cookie côté client et utilise unserialize() (ou équivalent) côté serveur sans vérification d’intégrité. En modifiant le cookie (décodage Base64 → modification → réencodage), un attaquant peut changer des attributs sensibles (ex. admin) et obtenir des privilèges administratifs.
 
-### Preuve de concept (PoC) — résumé des étapes
+### Exemple
+
+Capture : Présentation du lab Insecure Deserialization (début de page)
+
+<img src="./screens/a8-1.png" width="600">
 
 1. Connexion avec un compte normal (ex. wiener:peter).
 
+<img src="./screens/a8-2.png" width="600">
+
 2. Récupérer la requête post-login contenant le cookie session.
+
+<img src="./screens/a8-3.png" width="600">
 
 3. Décoder l’élément du cookie (URL decode → Base64 decode) → obtenir la chaîne PHP sérialisée :
 ```css
 O:4:"User":2:{s:8:"username";s:6:"wiener";s:5:"admin";b:0;}
 ```
+
+<img src="./screens/a8-4.png" width="600">
+
 4. Modifier b:0; → b:1;, ré-encoder et remplacer le cookie dans la requête (Burp Inspector / Repeater).
+
+<img src="./screens/a8-5.png" width="600">
+
+Cookie (modifié placé) :
+<img src="./screens/a8-6.png" width="600">
 
 5. Ré-envoyer → l’application considère l’utilisateur comme admin → accès /admin → suppression d’un compte (preuve / lab solved).
 
-(Joindre captures : cookie original, décodage, modification dans Burp, accès /admin, message de réussite.)
+<img src="./screens/a8-7.png" width="600">
+
+<img src="./screens/a8-8.png" width="600">
+
+<img src="./screens/a8-9.png" width="600">
 
 ### Pourquoi ça fonctionne (technique)
 
@@ -201,5 +221,6 @@ Captures Burp montrant l’envoi parallèle pour le lab Race Conditions, répons
 Extraits de logs / outputs de dependency-check si applicables.
 
 Snippets de code corrigés (HMAC JSON example, transaction SQL example).
+
 
 
