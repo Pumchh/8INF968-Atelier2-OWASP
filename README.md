@@ -12,17 +12,23 @@ header-right: |
 footer-right: "p. \\thepage"
 ---
 
-
+<br>
+<br>
+<br>
 
 <h1 align="center" style="color: red;">Atelier Cybersécurité I</h1>
 <h2 align="center" style="color: red;">Atelier 2 : OWASP Top Ten</h2>
 
 
 <h3 align="center">
-<a href="#">Rapport sur les vulnéravbilités du Top Ten OWASP</a>
+<a href="#">Rapport sur les vulnérabilités du Top Ten OWASP</a>
 </h3>
 
-<br><br>
+<br>
+<br>
+<br>
+<br>
+<br>
 
 <p align="center">
 Jaafar Fehmi  
@@ -31,13 +37,23 @@ Jaafar Fehmi
 </p>
 
 <br>
+<br>
+<br>
+<br>
+<br>
+<br>
 
 <p align="center">
 Université du Québec à Chicoutimi (UQAC), G7H 2B1  
 <br>Local P4-5300  
 </p>
 
-<br><br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
 
 <p align="center">
 BELLENGÉ Célian  
@@ -46,8 +62,7 @@ BELLENGÉ Célian
 <br>FOUSSET Martial  
 </p>
 
-<br>
-<br>
+
 <br>
 <br>
 <br>
@@ -59,18 +74,47 @@ BELLENGÉ Célian
 
 <br>
 
+# Table des matières
+- [Introduction générale](#introduction-générale)
+- [Méthodologie](#méthodologie)
+- [A01 — Broken Access Control (IDOR)](#a01--broken-access-control-idor)
+- [A02 — Cryptographic Failures](#a02--cryptographic-failures)
+- [A03 — Injection](#a03--injection)
+- [A04 — Insecure Design](#a04--insecure-design)
+- [A05 — Security Misconfiguration](#a05--security-misconfiguration)
+- [A07 — Identification and Authentication Failures](#a07--identification-and-authentication-failures)
+- [Conclusion générale](#conclusion-générale)
+- [Références](#références)
+
+
+# Introduction
+
+La cybersécurité est aujourd’hui un enjeu majeur dans la conception, le déploiement et la maintenance des systèmes informatiques. L’augmentation constante du nombre d’attaques, la complexité des architectures logicielles et la généralisation des services web exposés rendent indispensable une compréhension approfondie des vulnérabilités les plus courantes. C’est dans cette optique que le projet Atelier Cybersécurité I s’appuie sur le Top Ten OWASP, référence mondiale qui recense et hiérarchise les dix principales familles de failles de sécurité observées dans les applications web.
+Ce rapport a pour objectif d’explorer ces vulnérabilités à travers des mises en pratique concrètes, des analyses techniques détaillées et des propositions de remédiations. Chaque section aborde une faille spécifique — de la mauvaise gestion des contrôles d’accès aux erreurs cryptographiques, en passant par les injections ou les défauts de configuration — en suivant une méthodologie commune : reproduction de l’attaque, observation du comportement du système, analyse des causes profondes, et élaboration de contre-mesures applicables.
+Au-delà de l’aspect purement technique, ce travail vise à mettre en lumière l’importance de l’hygiène de sécurité et de la sécurité dès la conception (“Security by Design”). Comprendre les failles les plus critiques, c’est aussi apprendre à anticiper les vecteurs d’attaque et à construire des architectures plus résilientes. L’ensemble de ces expérimentations constitue ainsi une démarche d’apprentissage active permettant de renforcer les compétences pratiques en cybersécurité, tout en illustrant les bonnes pratiques de durcissement et de défense en profondeur.
+
+Les tests ont été réalisés dans des environnements isolés (bWAPP, DVWA, WebGoat) à des fins pédagogiques. Pour chaque vulnérabilité, la démarche suivie est :
+  - Reproduction : reproduire l’attaque sur l’environnement de test (outils : Burp Suite, curl, gobuster, scripts).
+  - Observation : collecter requêtes/réponses, logs et captures d’écran pour caractériser le comportement.
+  - Analyse : identifier la cause racine (conception, configuration, implémentation) et évaluer l’impact CIA (confidentialité, intégrité, disponibilité).
+  - Remédiation : proposer des correctifs techniques et organisationnels (ex. contrôle d’accès server-side, chiffrement, durcissement).
+  - Validation : vérifier la correction par des tests de régression et documenter les preuves.- 
+  - Reporting : consigner les tests, preuves et recommandations dans le rapport.
+
 # A01 - Broken Access Control
 
 ## Présentation
 
 Dans cette section je décris deux tests pratiques d'accès non autorisé trouvés en laboratoire, j'analyse les causes profondes observées et je propose des remédiations techniques et organisationnelles concrètes. Les descriptions incluent des précisions sur les faiblesses observées, les risques associés et des exemples de corrections applicables côté serveur et côté infrastructure.
 
-## Insecure direct object reference (IDOR)
+## Insecure Direct Object Reference (IDOR)
+
+L’Insecure Direct Object Reference (IDOR) est une faille de contrôle d’accès où une application permet d’accéder directement à des ressources via des identifiants prévisibles ou manipulables. En l’absence de vérification côté serveur, un utilisateur malveillant peut modifier ces identifiants pour consulter ou modifier les données d’autrui. Cette vulnérabilité, fréquente dans les applications web, illustre un défaut de validation d’ownership et une confiance excessive accordée aux entrées client. L’étude qui suit présente un exemple concret d’exploitation d’IDOR et les mesures techniques permettant d’y remédier efficacement.
 
 On récupère la requête POST
 <img src="A01 - Broken Access Control\image.png" width=600/>
 
-On send la requête
+On envoie la requête
 <img src="A01 - Broken Access Control\image-1.png" width=600/>
 
 Et dans la réponse on a l'hijack cookie
@@ -2039,3 +2083,12 @@ function secure_log($event_type, $details) {
 
 ### Conclusion avec un plan de remédiation priorisé
 L’audit confirme une vulnérabilité A09:2021 sur bWAPP, avec une journalisation incomplète, vulnérable à l’injection et à la suppression, rendant la détection d’incidents inefficace.
+
+
+# Conclusion
+
+À l’issue de cette étude, l’analyse des différentes vulnérabilités issues du Top Ten OWASP met en évidence un constat récurrent : la majorité des failles exploitées ne proviennent pas d’une absence d’outils de sécurité, mais plutôt d’une mauvaise conception, configuration ou utilisation de ces mécanismes. Les tests effectués sur les environnements bWAPP, DVWA et WebGoat ont permis d’illustrer concrètement la facilité avec laquelle une application mal protégée peut être compromise, que ce soit par un contrôle d’accès déficient, un chiffrement inadapté ou une logique métier vulnérable.
+Les contre-mesures proposées démontrent qu’une sécurité efficace repose sur une approche globale intégrant à la fois les bonnes pratiques de développement, les politiques de durcissement système, et la supervision continue. La mise en place d’outils de détection, de pipelines CI/CD sécurisés et de tests automatisés constitue une étape essentielle pour garantir la pérennité des protections déployées.
+Enfin, ce rapport souligne la nécessité d’une culture de la sécurité proactive, où chaque acteur du développement logiciel — développeur, administrateur, architecte ou analyste — contribue à réduire la surface d’attaque dès les premières étapes du cycle de vie applicatif. L’apprentissage des failles OWASP n’est pas une finalité, mais un socle fondamental sur lequel bâtir des systèmes plus sûrs, robustes et conformes aux exigences de cybersécurité modernes.
+
+
