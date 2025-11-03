@@ -24,21 +24,42 @@ Ces environnements sont conçus pédagogiquement : les payloads et manipulations
 
 L’application sérialise un objet User dans un cookie côté client et utilise unserialize() (ou équivalent) côté serveur sans vérification d’intégrité. En modifiant le cookie (décodage Base64 → modification → réencodage), un attaquant peut changer des attributs sensibles (ex. admin) et obtenir des privilèges administratifs.
 
-### Preuve de concept (PoC) — résumé des étapes
+### Exemple
+
+Capture : Présentation du lab Insecure Deserialization (début de page)
+
+<img src="./screens/a8-1.png" width="600">
 
 1. Connexion avec un compte normal (ex. wiener:peter).
 
+<img src="./screens/a8-2.png" width="600">
+
 2. Récupérer la requête post-login contenant le cookie session.
+
+<img src="./screens/a8-3.png" width="600">
 
 3. Décoder l’élément du cookie (URL decode → Base64 decode) → obtenir la chaîne PHP sérialisée :
 ```css
 O:4:"User":2:{s:8:"username";s:6:"wiener";s:5:"admin";b:0;}
 ```
+
+<img src="./screens/a8-4.png" width="600">
+
 4. Modifier b:0; → b:1;, ré-encoder et remplacer le cookie dans la requête (Burp Inspector / Repeater).
+
+<img src="./screens/a8-5.png" width="600">
+
+Cookie (modifié placé) :  
+
+<img src="./screens/a8-6.png" width="600">
 
 5. Ré-envoyer → l’application considère l’utilisateur comme admin → accès /admin → suppression d’un compte (preuve / lab solved).
 
-(Joindre captures : cookie original, décodage, modification dans Burp, accès /admin, message de réussite.)
+<img src="./screens/a8-7.png" width="600">
+
+<img src="./screens/a8-8.png" width="600">
+
+<img src="./screens/a8-9.png" width="600">
 
 ### Pourquoi ça fonctionne (technique)
 
@@ -100,21 +121,30 @@ unserialize($data, ["allowed_classes" => false]) ou whitelist explicite des clas
 
 Des opérations concurrentes non synchronisées permettent d’appliquer un coupon plusieurs fois : en envoyant un grand nombre de requêtes POST /cart/coupon en parallèle, plusieurs requêtes passent la vérification (vérif avant mise à jour) avant que le système n’enregistre que le coupon a été appliqué — la réduction est appliquée plusieurs fois, permettant d’acheter un article à un prix très réduit.
 
-### PoC — résumé des étapes
+### Exemple
 
 1. Ajouter un article (ex. Jacket à $1337) au panier.
 
-2. Vérifier qu’aucun coupon n’est appliqué.
+<img src="./screens/a8-10.png" width="600">
 
-3. Capturer la requête POST /cart/coupon dans Burp Repeater.
+2. Capturer la requête POST /cart/coupon dans Burp Repeater.
 
-4. Dupliquer la requête en ~20 onglets et envoyer le groupe en parallèle (mode single-packet / parallel).
+<img src="./screens/a8-11.png" width="600">
 
-5. Observer plusieurs réponses “Coupon applied” ; rafraîchir le panier → réduction multiple (total nettement inférieur).
+3. Dupliquer la requête en ~30 onglets et envoyer le groupe en parallèle (mode single-packet / parallel).
 
-6. inaliser l’achat si le total est inférieur au crédit → lab solved.
+<img src="./screens/a8-12.png" width="600">
 
-(Joindre captures : requête coupon, envoi en parallèle, réponses mixtes, total réduit, ordre final et message “Solved”.)
+<img src="./screens/a8-13.png" width="600">
+
+4. Observer plusieurs réponses “Coupon applied” ; rafraîchir le panier → réduction multiple (total nettement inférieur).
+
+<img src="./screens/a8-14.png" width="600">
+
+5. inaliser l’achat si le total est inférieur au crédit → lab solved.
+
+<img src="./screens/a8-15.png" width="600">
+
 
 ### Pourquoi ça fonctionne (technique)
 
@@ -175,31 +205,8 @@ COMMIT;
 A08 n’est pas qu’une histoire de « paquets mal signés » ; c’est aussi l’intégrité des données d’application (sessions, états, états d’opérations).
 
 Les deux cas étudiés (désérialisation non sécurisée, race conditions) montrent que l’absence de contrôle d’intégrité ou d’atomicité peut entraîner des impacts sévères (élévation de privilèges, perte financière, compromission).
-
-### Checklist opérationnelle à inclure dans ton rendu
-
-Inventaire & SBOM (liste composants + versions).
-
-Automatisation SCA (Dependency-Check, Snyk, Dependabot).
-
-Signatures & vérifications (HMAC/GPG/Sigstore) pour artefacts et données stockées côté client.
-
-Éviter unserialize() sur données client ; utiliser JSON signé ou sessions serveur.
-
-Concurrence : transactions, verrous, idempotency keys, queueing.
-
-Tests : ajouter tests unitaires / intégration pour désérialisation et scénarios concurrents.
-
-Monitoring & alerting : logs d’événements suspects et alertes CVE.
-
-## PREUVES À FOURNIR (annexes)
-
-Captures PortSwigger/Browser montrant le PoC pour Insecure Deserialization (cookie original → décodé → modifié → accès admin).
-
-Captures Burp montrant l’envoi parallèle pour le lab Race Conditions, réponses, total réduit et ordre final.
-
-Extraits de logs / outputs de dependency-check si applicables.
-
 Snippets de code corrigés (HMAC JSON example, transaction SQL example).
+
+
 
 

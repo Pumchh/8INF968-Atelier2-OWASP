@@ -34,17 +34,16 @@ Certaines versions anciennes de `jquery-ui` (ex. 1.10 / 1.11) insèrent l’opti
 Le widget dialog crée un bouton de fermeture et prend une option closeText (texte du bouton).
 
 Dans les versions vulnérables, la valeur de closeText est insérée comme HTML (équivalent de .html(closeText)), donc si closeText contient <script>...</script> le navigateur exécutera ce script.
-
-Dans les versions corrigées, le framework échappe ou traite closeText comme texte (ou modifie l’API d’insertion), empêchant l’exécution d’un script injecté.
-
-### Preuve / screen
 Avant (version vulnérable) : capture montrant $.ui.version = 1.11.4 et la popup / alerte (XSS) visible sur la page de test. 
 
+### Exemple
 <img src="./screens/a6-1.png" width="600">
 
+Dans les versions corrigées, le framework échappe ou traite closeText comme texte (ou modifie l’API d’insertion), empêchant l’exécution d’un script injecté.
 Après (patch) : capture montrant $.ui.version = 1.14.1 et absence d’alerte lors du même test.  
 
 <img src="./screens/a6-2.png" width="600">
+
 
 ## CORRECTION (technique + procédurale)
 **Actions immédiates**  
@@ -88,22 +87,35 @@ XStream (versions ≤ 1.4.6) permettait la désérialisation de types arbitraire
 
 > Important : ne jamais exécuter ni partager de payloads exploitables en dehors d’un environnement de labo isolé. Les preuves ici sont pédagogiques : sorties de WebGoat, logs, version de jar, rapport SCA.
 
-### Preuve / screen
-
-- Capture WebGoat : Démonstration cas normal + Listing des jars extraits du container montrant xstream-1.4.6.jar (ou version vulnérable).
+### Exemple
+Capture : Présentation du lab CVE-2013-7285 (début de page)
 
 <img src="./screens/a6-3.png" width="600">
 
-- Capture WebGoat : message You successfully tried to exploit the CVE-2013-7285 vulnerability + Logs montrant l’exception ou tentative d’exécution (ex. Cannot run program "calc.exe" – preuve que la commande a été tentée côté serveur)
+Dans l’exemple proposé par la leçon, l’application Web (WebGoat) fournit une interface qui accepte une représentation XML d’un contact et utilise XStream pour convertir ce XML en un objet Java `Contact` et l’enregistrer dans la base de données. Le fonctionnement attendu (cas normal) est :
+
+- le client envoie un bloc XML représentant un contact ;
+
+- le serveur appelle `XStream.fromXML(xml)` pour reconstruire un objet `Contact` ;
+
+- l’objet est persistant / traité comme une donnée utilisateur normale.
+
+La capture suivante illustre ce comportement normal : on soumet un XML "propre" et l’application crée le contact attendu dans la base.
+
+Capture : Utilisation normale
 
 <img src="./screens/a6-4.png" width="600">
 
+Cependant, lorsque l’application utilise une version vulnérable de XStream (ex. ≤ 1.4.6) et n’applique aucune restriction sur les types autorisés lors de la désérialisation, un attaquant peut fournir un flux XML spécialement construit pour forcer la création d’instances d’un type dangereux (par ex. `java.lang.ProcessBuilder` ou `java.beans.EventHandler`). En combinant ces types et en configurant leurs propriétés, l’attaquant peut provoquer l’exécution de commandes système sur le serveur au moment de la désérialisation ou lors de l’utilisation ultérieure de l’objet.
 
-- Rapport dependency-check mappant xstream → CVE-2013-7285.
+Techniquement, l’attaque exploite le fait que XStream lit les informations de type contenues dans le flux et recrée des objets arbitraires : si l’utilisateur contrôle totalement le XML d’entrée, il peut ainsi injecter un objet dont le comportement est dangereux.
+
+La capture suivante montre le résultat pédagogique dans WebGoat lorsqu’un tel payload malveillant a été soumis : WebGoat indique **“You successfully tried to exploit the CVE-2013-7285 vulnerability”**. En complément, les logs retournés par l’application montrent une exception liée à la tentative d’exécution d’un programme système (ex. `Cannot run program "calc.exe"`), preuve que la tentative d’exécution de commande a bien été initiée côté serveur.
+
+Capture WebGoat : message You successfully tried to exploit the CVE-2013-7285 vulnerability + Logs montrant l’exception ou tentative d’exécution (ex. Cannot run program "calc.exe" – preuve que la commande a été tentée côté serveur)
 
 <img src="./screens/a6-5.png" width="600">
 
-<img src="./screens/a6-6.png" width="600">
 
 ## CORRECTION (technique + procédurale)
 **Actions techniques**
@@ -125,7 +137,7 @@ xstream.allowTypes(new Class[]{com.myapp.model.Contact.class, com.myapp.model.Ad
 
 4. Éviter les transformations automatiques de flux non fiables ; si possible, utiliser des bibliothèques de parsing explicitement sûres (JAXB avec classes contrôlées, parsers JSON typesafe).
 
-**Mesures procédurales**
+**Mesures procédurales (théorique - pas tester)**
 
 - Intégrer SCA en CI (Dependency-Check / Snyk / Dependabot) pour détecter rapidement CVE.
 
@@ -134,8 +146,6 @@ xstream.allowTypes(new Class[]{com.myapp.model.Contact.class, com.myapp.model.Ad
 - Virtual patch : si mise à jour impossible immédiatement, utiliser WAF / règles de détection pour bloquer patterns connus (mesure temporaire).
 
 - Test : automatiser tests d’intégration pour valider que la whitelist bloque la désérialisation de types non autorisés.
-
-**Vérification après correction**
 
 - Regénérer dependency-check → la CVE liée à XStream doit disparaître.
 
@@ -148,6 +158,11 @@ A06 est essentiellement un problème de gestion des composants : connaitre ce qu
 Combiner approches : mise à jour technique (patch), durcissement applicatif (whitelist/validation/échappement), et gouvernance (SCA/CI/SBOM/CSP/SRI).
 
 Processus recommandé pour une organisation : inventaire continu (SBOM), alerting CVE, triage basé sur risque, calendrier de patching (urgences prioritaires), tests de non-régression et contrôle d’accès minimal (least privilege).
+
+
+
+
+
 
 
 
