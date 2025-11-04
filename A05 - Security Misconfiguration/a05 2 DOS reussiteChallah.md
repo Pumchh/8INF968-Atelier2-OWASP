@@ -29,8 +29,7 @@ Script converti pour exécution en **Python 3**, puis déroulé des tests.
 
 ## Sous‑étapes
 ### 1) Conversion du script
-cat > /tmp/nginx_dos_py3_converted.py <<'PY'
-#!/usr/bin/env python3
+```python
 import http.client
 import socket
 import sys
@@ -88,8 +87,7 @@ while packet <= 66:
     conn.close()
 
 print("[+] Done!")
-PY
-chmod +x /tmp/nginx_dos_py3_converted.py
+```
 
 ### 2) Exécution
 python3 /tmp/nginx_dos_py3_converted.py 127.0.0.1:8081 2>&1 | tee /tmp/nginx_dos_py3_run.log

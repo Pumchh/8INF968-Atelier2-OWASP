@@ -179,7 +179,7 @@ $upd->execute([':s'=>$_POST['secret'], ':id'=>$resourceId]);
 $pdo->commit();
 echo 'Modification réussie';
 ?>
-
+```
 
 
 ## Modification d’un autre utilisateur
@@ -187,16 +187,16 @@ echo 'Modification réussie';
 Objectif : vérifier si, connecté en tant que Test, on peut modifier le secret d’un autre utilisateur en changeant le paramètre de requête.
 
 Preuve
-- Création utilisateur Test :
+Création utilisateur Test :
   <img src="A01 - Broken Access Control\bWapp1.png" width=600/>
 
-- Envoi de la requête de modification (param user ou uid) :  
+Envoi de la requête de modification (param user ou uid) :  
   <img src="A01 - Broken Access Control\bWapp2.png" width=600/>
 
-- Modification du paramètre pour viser un autre compte et envoi :  
+Modification du paramètre pour viser un autre compte et envoi :  
   <img src="A01 - Broken Access Control\bWapp3.png" width=600/>
 
-- Résultat : secret modifié pour l’autre compte :
+Résultat : secret modifié pour l’autre compte :
   <img src="A01 - Broken Access Control\bWapp4.png" width=600/>
 
 
@@ -502,8 +502,6 @@ echo -n "<message>" | openssl dgst -sha256 -sign priv.pem | base64 -w0
 * Message à signer : hex(modulus) (exercice WebGoat).
 * Signature générée par la commande ci-dessus.
 
-> Remarque : dans ce document nous fournissons la procédure. La génération effective de la signature requiert exécution locale d’OpenSSL. Je ne fournis pas la signature b64 ici car je ne peux pas exécuter OpenSSL.
-
 **Décodage / vérification**
 
 ```bash
@@ -807,7 +805,7 @@ if( ( is_numeric( $octet[0] ) )
 ```
 Comme on veut recevoir une ip, et qu'elle a toujours la même forme int.int.int.int, on va essayer de couper au niveau des ```.``` ce qu'on reçoit en morceaux. S'il y a exactement 4 morceaux et qu'ils contiennent tous des entiers, alors seulement on exécute la commande voulue.
 
-# Insecure Design
+# A04 - Insecure Design
 
 ## Présentation
 Une faille d’Insecure Design survient quand une protection n’a pas été pensée dès la conception : la logique métier ou l’architecture laisse des possibilités d’abus (on fait confiance au client, pas au serveur).  
@@ -1544,6 +1542,171 @@ sudo systemctl stop nginx || true
 - **Reverse proxy** recommandé pour **timeouts** et **rate-limits** fins.  
 - Tests en environnement non-prod, **surveillance CPU/mémoire/swap** pendant essais.
 
+
+# A06 — Vulnerable & outdated components
+**Définition (A06)**  
+A06 concerne les risques liés à l’utilisation de composants logiciels vulnérables, obsolètes ou mal entretenus (bibliothèques, frameworks, modules, images conteneurs, OS, runtimes). Un composant vulnérable intégré à une application peut permettre à un attaquant d’exploiter une faille dans ce composant et d’obtenir un impact élevé (RCE, fuite de données, élévation de privilèges), même si le code applicatif lui-même est correct.
+
+**Pourquoi c’est critique**
+
+- Les composants tiers s’exécutent souvent avec les mêmes privilèges que l’application : une vulnérabilité dans une bibliothèque peut devenir une porte d’entrée complète.
+- L’écosystème logiciel moderne est fortement dépendant : la plupart des applications importent des dizaines voire des centaines de dépendances directes et transverses (transitives).
+- Les vulnérabilités peuvent être publiées après déploiement (CVE) et rester non corrigées longtemps si le processus de mise à jour est déficient.
+- Certains composants sont abandonnés (unmaintained) : pas de patches fournis → exposition prolongée.
+
+**Quelques données & contexte (illustratif)**
+
+- Plus de 10 millions de dépôts sur GitHub.
+- Environ 1 million de dépôts historiques sur SourceForge.
+- Des milliers de dépôts binaires publics (artéfacts) sur divers registries.
+Ces chiffres montrent l’ampleur et la fragmentation de l’écosystème open-source : beaucoup d’acteurs, de registres et de modèles de packaging coexistent, ce qui rend l’inventaire et le contrôle difficiles.
+
+**Conséquences opérationnelles**
+
+- Difficulté à inventorier toutes les dépendances (directes + transitives).
+- Risque d’importer des paquets malveillants (typosquatting, malicious publish).
+- Risque d’exécuter des binaires dont le code source ne correspond pas au binaire publié.
+- Multiples systèmes de packaging (npm, Maven, NuGet, PyPI, etc.) et formats (tar, wheel, jars, images Docker) compliquent la gouvernance.
+
+**Cadre de test :**  
+WebGoat (image Docker utilisée en labo). Toutes les manipulations sont réalisées en environnement isolé et contrôlé — ne pas reproduire les mêmes actions sur des systèmes de production.
+
+## PREMIÈRE VULNÉRABILITÉ — `jquery-ui` closeText (XSS)
+### Résumé
+Certaines versions anciennes de `jquery-ui` (ex. 1.10 / 1.11) insèrent l’option `closeText` du widget `dialog` dans le DOM via une insertion HTML sans échappement, ce qui permet à une chaîne contenant du HTML/script d’être interprétée par le navigateur → *Cross-Site Scripting (XSS)*.
+
+### Explication technique (niveau clair)
+Le widget dialog crée un bouton de fermeture et prend une option closeText (texte du bouton).
+
+Dans les versions vulnérables, la valeur de closeText est insérée comme HTML (équivalent de .html(closeText)), donc si closeText contient <script>...</script> le navigateur exécutera ce script.
+Avant (version vulnérable) : capture montrant $.ui.version = 1.11.4 et la popup / alerte (XSS) visible sur la page de test. 
+
+### Exemple
+<img src="A06 - Vulnerable & Outdated Components/screens/a6-1.png" width="600">
+
+Dans les versions corrigées, le framework échappe ou traite closeText comme texte (ou modifie l’API d’insertion), empêchant l’exécution d’un script injecté.
+Après (patch) : capture montrant $.ui.version = 1.14.1 et absence d’alerte lors du même test.  
+
+<img src="A06 - Vulnerable & Outdated Components/screens/a6-2.png" width="600">
+
+
+## Correction
+**Actions immédiates**  
+1. Mettre à jour la dépendance jquery-ui vers une version corrigée (dernière disponible) ainsi que la version de jQuery.
+2. Ne jamais insérer du HTML non fiable dans des options/widgets. Si la valeur vient d’un utilisateur, échaper avant insertion.
+
+**Exemple de code sécurisé (échappement)**  
+```js
+// fonction d'échappement simple
+function escapeHtml(s) {
+  return String(s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+$(function(){
+  var userCloseText = '<script>alert("XSS")</script>'; // donnée d'exemple
+  var safeCloseText = escapeHtml(userCloseText);
+  $('#dialog').dialog({ closeText: safeCloseText });
+});
+```
+Ou utiliser jQuery pour convertir en texte :  
+```js
+var safeCloseText = $('<div/>').text(userInput).html();
+$('#dialog').dialog({ closeText: safeCloseText });
+```
+
+## DEUXIÈME VULNÉRABILITÉ — Exploiting CVE-2013-7285 (XStream)
+### Résumé  
+XStream (versions ≤ 1.4.6) permettait la désérialisation de types arbitraires à partir de flux XML/JSON. Un attaquant pouvant fournir du flux non-fiable pouvait faire recréer des instances de classes JDK dangereuses (ex. java.lang.ProcessBuilder, java.beans.EventHandler) conduisant potentiellement à exécution de code à distance (RCE). CVE-2013-7285 documente ce comportement.
+
+### Explication technique (niveau clair)  
+- XStream.fromXML(xml) lit le XML et reconstruit des objets Java selon les informations de type contenues dans le flux.
+
+- Si la bibliothèque autorise des types arbitraires, un attaquant peut injecter un objet « handler » configuré pour appeler une méthode / créer un Process lors d’une invocation normale sur l’objet désérialisé.
+
+- Le danger vient donc d’une désérialisation non filtrée couplée à la présence dans le classpath de classes capables d’exécuter actions sensibles.
+
+> Important : ne jamais exécuter ni partager de payloads exploitables en dehors d’un environnement de labo isolé. Les preuves ici sont pédagogiques : sorties de WebGoat, logs, version de jar, rapport SCA.
+
+### Exemple
+Capture : Présentation du lab CVE-2013-7285 (début de page)
+
+<img src="A06 - Vulnerable & Outdated Components/screens/a6-3.png" width="600">
+
+Dans l’exemple proposé par la leçon, l’application Web (WebGoat) fournit une interface qui accepte une représentation XML d’un contact et utilise XStream pour convertir ce XML en un objet Java `Contact` et l’enregistrer dans la base de données. Le fonctionnement attendu (cas normal) est :
+
+- le client envoie un bloc XML représentant un contact ;
+
+- le serveur appelle `XStream.fromXML(xml)` pour reconstruire un objet `Contact` ;
+
+- l’objet est persistant / traité comme une donnée utilisateur normale.
+
+La capture suivante illustre ce comportement normal : on soumet un XML "propre" et l’application crée le contact attendu dans la base.
+
+Capture : Utilisation normale
+
+<img src="A06 - Vulnerable & Outdated Components/screens/a6-4.png" width="600">
+
+Cependant, lorsque l’application utilise une version vulnérable de XStream (ex. ≤ 1.4.6) et n’applique aucune restriction sur les types autorisés lors de la désérialisation, un attaquant peut fournir un flux XML spécialement construit pour forcer la création d’instances d’un type dangereux (par ex. `java.lang.ProcessBuilder` ou `java.beans.EventHandler`). En combinant ces types et en configurant leurs propriétés, l’attaquant peut provoquer l’exécution de commandes système sur le serveur au moment de la désérialisation ou lors de l’utilisation ultérieure de l’objet.
+
+Techniquement, l’attaque exploite le fait que XStream lit les informations de type contenues dans le flux et recrée des objets arbitraires : si l’utilisateur contrôle totalement le XML d’entrée, il peut ainsi injecter un objet dont le comportement est dangereux.
+
+La capture suivante montre le résultat pédagogique dans WebGoat lorsqu’un tel payload malveillant a été soumis : WebGoat indique **“You successfully tried to exploit the CVE-2013-7285 vulnerability”**. En complément, les logs retournés par l’application montrent une exception liée à la tentative d’exécution d’un programme système (ex. `Cannot run program "calc.exe"`), preuve que la tentative d’exécution de commande a bien été initiée côté serveur.
+
+Capture WebGoat : message You successfully tried to exploit the CVE-2013-7285 vulnerability + Logs montrant l’exception ou tentative d’exécution (ex. Cannot run program "calc.exe" – preuve que la commande a été tentée côté serveur)
+
+<img src="A06 - Vulnerable & Outdated Components/screens/a6-5.png" width="600">
+
+
+## Correction
+**Actions techniques**
+
+1. Mettre à jour XStream vers une version corrigée (vérifier la dernière version stable).
+
+2. Interdire par défaut la désérialisation et autoriser explicitement uniquement les types nécessaires (whitelist). Exemple recommandé :
+```java
+XStream xstream = new XStream();
+// Deny everything by default
+xstream.addPermission(NoTypePermission.NONE);
+// Allow null and primitive types
+xstream.addPermission(NullPermission.NULL);
+xstream.addPermission(PrimitiveTypePermission.PRIMITIVES);
+// Allow only application-specific types
+xstream.allowTypes(new Class[]{com.myapp.model.Contact.class, com.myapp.model.Address.class});
+```
+3. Valider le flux (XML/JSON) contre un schéma (XSD/JSON Schema) avant toute désérialisation.
+
+4. Éviter les transformations automatiques de flux non fiables ; si possible, utiliser des bibliothèques de parsing explicitement sûres (JAXB avec classes contrôlées, parsers JSON typesafe).
+
+**Mesures procédurales (théorique - pas tester)**
+
+- Intégrer SCA en CI (Dependency-Check / Snyk / Dependabot) pour détecter rapidement CVE.
+
+- SBOM : tenir un inventaire de composants (Software Bill Of Materials).
+
+- Virtual patch : si mise à jour impossible immédiatement, utiliser WAF / règles de détection pour bloquer patterns connus (mesure temporaire).
+
+- Test : automatiser tests d’intégration pour valider que la whitelist bloque la désérialisation de types non autorisés.
+
+- Regénérer dependency-check → la CVE liée à XStream doit disparaître.
+
+- Refaire la tentative pédagogique dans WebGoat → l’exercice ne doit plus réussir (pas de message de succès ni d’exécution).
+
+## Conclusion & recommandations globales
+
+A06 est essentiellement un problème de gestion des composants : connaitre ce qu’on utilise, surveiller les vulnérabilités, appliquer des mises à jour critiques, et adopter des contrôles compensatoires.
+
+Combiner approches : mise à jour technique (patch), durcissement applicatif (whitelist/validation/échappement), et gouvernance (SCA/CI/SBOM/CSP/SRI).
+
+Processus recommandé pour une organisation : inventaire continu (SBOM), alerting CVE, triage basé sur risque, calendrier de patching (urgences prioritaires), tests de non-régression et contrôle d’accès minimal (least privilege).
+
+
+
+
 # A07 — Identification and Authentication
 
 ## Présentation
@@ -1679,6 +1842,214 @@ $cookie_value = sha1(mt_rand() . time() . "Impossible");
 ```
 
 Ici le chiffrement se fait en SHA1 qui est bien supérieur au MD5. En plus, il ne s'agit plus d'une incrémentation simple mais il y a de l'aléatoire et du temps, donc c'est impossible de deviner ce qui sera de toute manière sera chiffré.
+
+# A08 — Software & Data Integrity Failure
+
+## Introduction et Contexte
+A08 couvre les défaillances où le logiciel ou les données consommées ne peuvent pas être vérifiées quant à leur intégrité ou provenance. Cela inclut : artefacts mal signés, paquets compromis, builds non reproductibles, mais aussi données d’application (sessions, objets sérialisés, états de panier) acceptées sans vérification. L’impact peut aller d’une simple altération d’UI à une compromission complète de la chaîne d’approvisionnement ou une élévation de privilèges/RCE.
+
+**Pourquoi c’est critique**
+
+Les erreurs d’intégrité permettent l’introduction de code ou d’état malveillant à un point d’exécution (client, serveur, CI, runtime).
+
+Elles sont difficiles à détecter sans mécanismes cryptographiques (signatures, HMAC, checksums vérifiés) ou garanties de provenance (SBOM, attestations).
+
+**Cadre de test**
+Les démonstrations et preuves qui suivent ont été réalisées sur des labs PortSwigger fournis en environnement isolé. Ces labs reproduisent deux catégories pratiques d’A08 :
+
+1. Insecure Deserialization — modification d’un objet sérialisé dans un cookie pour escalader des privilèges.
+
+2. Race Conditions (Limit overrun) — envoi de requêtes parallèles pour exploiter une fenêtre de course et appliquer plusieurs fois un coupon.
+
+Ces environnements sont conçus pédagogiquement : les payloads et manipulations ont été effectués uniquement en labo.
+
+## Première Vulnérabilité — Insecure Dezerialization
+
+L’application sérialise un objet User dans un cookie côté client et utilise unserialize() (ou équivalent) côté serveur sans vérification d’intégrité. En modifiant le cookie (décodage Base64 → modification → réencodage), un attaquant peut changer des attributs sensibles (ex. admin) et obtenir des privilèges administratifs.
+ 
+### Exemple
+
+Capture : Présentation du lab Insecure Deserialization (début de page)
+
+<img src="A08 - Software & Data Integrity Failures/screens/a8-1.png" width="600">
+
+1. Connexion avec un compte normal (ex. wiener:peter).
+
+<img src="A08 - Software & Data Integrity Failures/screens/a8-2.png" width="600">
+
+2. Récupérer la requête post-login contenant le cookie session.
+
+<img src="A08 - Software & Data Integrity Failures/screens/a8-3.png" width="600">
+
+3. Décoder l’élément du cookie (URL decode → Base64 decode) → obtenir la chaîne PHP sérialisée :
+```css
+O:4:"User":2:{s:8:"username";s:6:"wiener";s:5:"admin";b:0;}
+```
+
+<img src="A08 - Software & Data Integrity Failures/screens/a8-4.png" width="600">
+
+4. Modifier b:0; → b:1;, ré-encoder et remplacer le cookie dans la requête (Burp Inspector / Repeater).
+
+<img src="A08 - Software & Data Integrity Failures/screens/a8-5.png" width="600">
+
+Cookie (modifié placé) :  
+
+<img src="A08 - Software & Data Integrity Failures/screens/a8-6.png" width="600">
+
+5. Ré-envoyer → l’application considère l’utilisateur comme admin → accès /admin → suppression d’un compte (preuve / lab solved).
+
+<img src="A08 - Software & Data Integrity Failures/screens/a8-7.png" width="600">
+
+<img src="A08 - Software & Data Integrity Failures/screens/a8-8.png" width="600">
+
+<img src="A08 - Software & Data Integrity Failures/screens/a8-9.png" width="600">
+
+### Pourquoi ça fonctionne (technique)
+
+unserialize() reconstruit les objets PHP exactement tels qu’ils ont été fournis.
+
+Le cookie est non signé : aucune HMAC/GPG/clé secrète ne protège son intégrité.
+
+Le serveur prend des décisions de sécurité basées sur des données contrôlables par le client.
+
+## Correction (remontée — code & process)
+1) Solution la plus sûre : sessions côté serveur
+
+- Utiliser $_SESSION (ou store serveur) et ne stocker côté client qu’un identifiant de session opaque.
+
+- Avantage : l’état sensible n’est jamais envoyé au client ; toute modification côté client est indépendante.
+
+2) Si stockage côté client indispensable : signer et vérifier
+
+- Utiliser JSON (ou autre format texte) + HMAC (SHA256) côté serveur.
+
+- Exemple (PHP conceptuel) :
+```css
+// création
+$payload = base64_encode(json_encode($data));
+$sig = hash_hmac('sha256', $payload, SECRET_KEY);
+setcookie('session', $payload . '.' . $sig, ['httponly'=>true,'secure'=>true]);
+
+// validation
+list($payload, $sig) = explode('.', $_COOKIE['session'], 2);
+if (!hash_equals(hash_hmac('sha256', $payload, SECRET_KEY), $sig)) {
+  // rejet : intégrité rompue
+}
+$data = json_decode(base64_decode($payload), true);
+```
+3) Empêcher la reconstruction d’objets via unserialize()
+
+- Si on doit utiliser unserialize(), interdire la création d’objets :
+unserialize($data, ["allowed_classes" => false]) ou whitelist explicite des classes autorisées.
+
+- Valider strictement les types/valeurs après désérialisation.
+
+4) Méthodes souples additionnelles
+
+- Chiffrer le cookie (si stockage côté client) mais toujours accompagner d’une signature.
+
+- Mettre HttpOnly, Secure, SameSite=strict et durée de vie courte pour réduire l’impact.
+
+### Vérification post-fix
+
+- Refaire l’altération côté client → serveur doit rejeter (signature invalide / session différente).
+
+- Audit statique pour trouver usages dangereux (unserialize($_COOKIE...)) et remédier.
+
+- Ajouter tests CI qui détectent stockage d’objets sérialisés non protégés.
+
+## 2e vulnérabilité — Race Conditions 
+
+### Résumé
+
+Des opérations concurrentes non synchronisées permettent d’appliquer un coupon plusieurs fois : en envoyant un grand nombre de requêtes POST /cart/coupon en parallèle, plusieurs requêtes passent la vérification (vérif avant mise à jour) avant que le système n’enregistre que le coupon a été appliqué — la réduction est appliquée plusieurs fois, permettant d’acheter un article à un prix très réduit.
+
+### Exemple
+
+1. Ajouter un article (ex. Jacket à $1337) au panier.
+
+<img src="A08 - Software & Data Integrity Failures/screens/a8-10.png" width="600">
+
+2. Capturer la requête POST /cart/coupon dans Burp Repeater.
+
+<img src="A08 - Software & Data Integrity Failures/screens/a8-11.png" width="600">
+
+3. Dupliquer la requête en ~30 onglets et envoyer le groupe en parallèle (mode single-packet / parallel).
+
+<img src="A08 - Software & Data Integrity Failures/screens/a8-12.png" width="600">
+
+<img src="A08 - Software & Data Integrity Failures/screens/a8-13.png" width="600">
+
+4. Observer plusieurs réponses “Coupon applied” ; rafraîchir le panier → réduction multiple (total nettement inférieur).
+
+<img src="A08 - Software & Data Integrity Failures/screens/a8-14.png" width="600">
+
+5. inaliser l’achat si le total est inférieur au crédit → lab solved.
+
+<img src="A08 - Software & Data Integrity Failures/screens/a8-15.png" width="600">
+
+
+### Pourquoi ça fonctionne (technique)
+
+- Le serveur vérifie puis met à jour sans verrou/transaction atomique : la séquence if not applied → apply n’est pas atomique.
+
+- Plusieurs threads/processes lisent la même condition avant qu’un seul n’écrive la nouvelle valeur, créant une fenêtre de course.
+
+## Corrections (technique & process)
+1) Verrouiller / transaction atomique (recommandé)
+
+- Au niveau base de données utiliser des verrous ou transactions atomiques :
+
+    - SELECT ... FOR UPDATE (row-level lock) puis update et commit.
+
+    - Transaction ACID : lire, valider, appliquer dans une même transaction.
+
+Exemple (SQL pseudo) :
+```css
+BEGIN;
+SELECT applied FROM coupons WHERE user_id = ? FOR UPDATE;
+IF applied = false THEN
+  UPDATE coupons SET applied = true WHERE user_id = ?;
+  -- calcul du montant et enregistrement
+END IF;
+COMMIT;
+```
+
+2) Optimistic locking (versioning)
+
+- Utiliser un champ version/etag : UPDATE ... WHERE id = ? AND version = ? et vérifier la ligne affectée ; si 0 → retry.
+
+3) Opérations idempotentes / token unique
+
+- Générer un idempotency key côté client/commande : serveur ignore doublons (stocke les IDs traités).
+
+- Rendre l’opération d’application de coupon idempotente (la même requête multiple fois produit le même résultat).
+
+4) Sérialisation côté application
+
+- File d’attente ou mutex par panier utilisateur pour sérialiser les modifications concurrentes.
+
+5) Vérification finale au checkout
+
+- Recalculer et valider le prix au moment du paiement en refaisant tous les calculs côté serveur ; ne pas se reposer sur le total affiché côté client.
+
+### Vérification post-fix
+
+- Rejouer l’attaque parallèle → les requêtes supplémentaires doivent échouer ou être ignorées.
+
+- Tests de charge / concurrence automatisés (integration tests) pour vérifier absence de duplication.
+
+- Traces/logs : vérifier que seules des transactions légitimes passent, alerter en cas d’incidents anormaux.
+
+## Conclusion
+
+A08 n’est pas qu’une histoire de « paquets mal signés » ; c’est aussi l’intégrité des données d’application (sessions, états, états d’opérations).
+
+Les deux cas étudiés (désérialisation non sécurisée, race conditions) montrent que l’absence de contrôle d’intégrité ou d’atomicité peut entraîner des impacts sévères (élévation de privilèges, perte financière, compromission).
+Snippets de code corrigés (HMAC JSON example, transaction SQL example).
+
+
+
 
 # A09 – Security Logging and Monitoring Failures
 
@@ -2084,6 +2455,254 @@ function secure_log($event_type, $details) {
 ### Conclusion avec un plan de remédiation priorisé
 L’audit confirme une vulnérabilité A09:2021 sur bWAPP, avec une journalisation incomplète, vulnérable à l’injection et à la suppression, rendant la détection d’incidents inefficace.
 
+
+# A10 - Server Side Request Forgery
+
+## Présentation
+
+### Description
+
+La SSRF (Server-Side Request Forgery) se produit lorsqu’une application web récupère des ressources distantes en se basant sur une URL fournie par l’utilisateur, sans valider correctement cette URL. L’application agit alors comme un proxy et peut être forcée à effectuer des requêtes vers des ressources internes ou externes que l’attaquant ne pourrait pas contacter directement.
+Ces attaques permettent des accès non autorisé à des services internes (API privées, métadonnées cloud, bases de données administratives), ou encore des exfiltration d’informations.
+
+## Quelques statistiques
+
+D'après l’OWASP Top-10 2021, la catégorie "Server Side Request Forgery" a été testée sur 67.72 % des applications étudiées, avec ~9500 occurrences détectées et des taux d’incidence moyens d'environ 2.72 %. 
+
+## Exemples d'utilisation
+
+### 1. Accès à des ressources privées et utilisation comme proxy
+ html viewer mais il a accès au réseau et si on connait l'url, on peut accéder à des ressources privées
+
+Le site suivant permet d'afficher le code HTML et donne un aperçu du site.
+
+<img src="A10 - Server Side Request Forgery/SSRF_UseAsProxy.png" width=600/>
+
+Ici on peut utiliser le site comme un proxy qui va exécuter pour nous les injections ou autres attaques sur un autre site. Dans l'exemple précédent, on pouvait attaquer WebGoat.
+
+Mais il est aussi possible d'attaquer le site lui-même ou des sites privés situés sur son réseau auquel il fait parti. On va par exemple regarder les informations réseau du site en allant sur ```http://ifconfig.pro```. Il est aussi possible d'utiliser ```file://``` pour accéder à une ressource situé sur le serveur.
+
+<img src="A10 - Server Side Request Forgery/SSRF_StealInfo.png" width=600/>
+
+Avec ces informations on peut chercher d'autres cibles sur le réseau privé puis les attaquer par le site de liseur html. Cela peut permettre de récupérer des informations qui était pourtant protégées.
+
+<img src="A10 - Server Side Request Forgery/SSRF_UseBecauseItHasAccess.png" width=600/>
+
+Enfin, il est aussi possible de viser le site lui-même en téléchargeant notre propre malware.
+
+<img src="A10 - Server Side Request Forgery/SSRF_InstallMalware.png" width=600/>
+
+
+### 2. Récupération de données non publiques
+
+Ici on est sur un site qui effectue une action en fonction de notre rôle.
+
+<img src="A10 - Server Side Request Forgery/Change_URL-Ressource1.png" width=600/>
+
+Normalement l'utilisateur lambda devrait recevoir une image de Tom.
+
+<img src="A10 - Server Side Request Forgery/Change_URL-Ressource2.png" width=600/>
+
+Cependant, s'il on utilise un proxy (ici on utilise Burp), on remarque que l'on peut modifier l'url demandé qui vise l'image de Tom.
+
+<img src="A10 - Server Side Request Forgery/Change_URL-Ressource3.png" width=600/>
+
+Si l'on sait ce que l'admin devrait avoir, on peut changer l'URL dans le proxy avant l'envoi pour se faire passer pour l'admin, au moins pour cette action. Ici on suppose que l'admin devrait voir Jerry, on va donc essayer.
+
+<img src="A10 - Server Side Request Forgery/Change_URL-Ressource4.png" width=600/>
+
+On reçoit bien ce que seul l'admin devrait recevoir.
+
+
+## Comment se défendre de ces attaques ?
+
+### Accès à des ressources privées et utilisation comme proxy
+
+#### Avant
+
+Voici le code originel
+```python
+from flask import Flask, request, render_template
+import requests
+
+app = Flask(__name__)
+
+@app.route('/',methods=['GET','POST'])
+def index():
+    url = ''
+    if request.method == 'POST':
+        url = request.form.get('url')
+        r = requests.get(url, timeout=5)
+        html = r.text
+    return render_template('index.html', url=url,html=html)
+
+if __name__=='__main__':
+  app.run(host='0.0.0.0',port=1234)
+```
+
+#### Après correction
+
+```python
+from flask import Flask, request, render_template
+import requests
+from urllib.parse import urlparse
+import socket
+import ipaddress
+
+app = Flask(__name__)
+
+# Fonction de sécurité SSRF
+def is_url_safe(url):
+    try:
+        parsed = urlparse(url)
+
+        if parsed.scheme not in ['http', 'https']:
+            return False
+
+        hostname = parsed.hostname
+
+        ip = socket.gethostbyname(hostname)
+        ip_obj = ipaddress.ip_address(ip)
+
+        if (
+            ip_obj.is_private or
+            ip_obj.is_loopback or
+            ip_obj.is_reserved or
+            ip_obj.is_link_local or
+            ip_obj.is_multicast
+        ):
+            return False
+
+        return True
+    except Exception:
+        return False
+
+@app.route('/', methods=['GET', 'POST'])
+def index():
+    url = ''
+    html = ''
+    if request.method == 'POST':
+        url = request.form.get('url')
+
+        if not is_url_safe(url):
+            html = 'URL refusée'
+        else:
+            try:
+                response = requests.get(url, timeout=5, allow_redirects=False)
+                html = response.text
+            except Exception as e:
+                html = "Erreur"
+
+    return render_template('index.html', url=url, html=html)
+
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=1234)
+```
+
+Le code est sécurisé contre les attaques SSRF car il implémente plusieurs mécanismes de défense complémentaires. D'abord, il vérifie que l’URL fournie utilise uniquement les schémas HTTP ou HTTPS, ce qui empêche l’exploitation ```file://``` ou autre. Ensuite, il effectue une résolution DNS du nom de domaine pour identifier l’adresse IP réelle de la cible pour vérifier qu'il ne s'agit pas du réseau privé. Ainsi il ne peut pas y avoir de fuite de données. De plus, il impose un délai d’attente strict pour éviter que le serveur ne soit paralysé par une requête malveillante lente, et il désactive le suivi des redirections HTTP, ce qui empêche les attaques indirectes via des chaînes de redirection. Enfin, il gère proprement les erreurs et affiche des messages clairs sans divulguer d’informations sensibles.
+
+### Récupération de données non publiques
+
+#### Avant
+
+Voici le code originel : 
+
+```java
+protected AttackResult stealTheCheese(String url) {
+    try {
+      StringBuilder html = new StringBuilder();
+
+      if (url.matches("images/tom\\.png")) {
+        html.append(
+            "<img class=\"image\" alt=\"Tom\" src=\"images/tom.png\" width=\"25%\""
+                + " height=\"25%\">");
+        return failed(this).feedback("ssrf.tom").output(html.toString()).build();
+      } else if (url.matches("images/jerry\\.png")) {
+        html.append(
+            "<img class=\"image\" alt=\"Jerry\" src=\"images/jerry.png\" width=\"25%\""
+                + " height=\"25%\">");
+        return success(this).feedback("ssrf.success").output(html.toString()).build();
+      } else {
+        html.append("<img class=\"image\" alt=\"Silly Cat\" src=\"images/cat.jpg\">");
+        return failed(this).feedback("ssrf.failure").output(html.toString()).build();
+      }
+    } catch (Exception e) {
+      e.printStackTrace();
+      return failed(this).output(e.getMessage()).build();
+    }
+  }
+```
+
+Ce morceau est exécuté et prend l'url envoyé par l'utilisateur.
+
+#### Après correction
+
+```java
+protected AttackResult stealTheCheese(String url) {
+    try {
+        // Normaliser et contrôler l'entrée
+        if (url == null) {
+            return failed(this).feedback("ssrf.failure").output("Invalid resource").build();
+        }
+
+        // décodage basique et normalisation (évite encodages malicieux)
+        String decoded = java.net.URLDecoder.decode(url, java.nio.charset.StandardCharsets.UTF_8.name()).trim();
+
+        // Rejet rapide de patterns dangereux
+        String lower = decoded.toLowerCase();
+        if (lower.contains("..") || lower.startsWith("/") || lower.contains("://") || lower.contains("\\") || lower.contains(":")) {
+            // log attempt ou audit
+            System.out.println("Blocked SSRF attempt: " + decoded);
+            return failed(this).feedback("ssrf.failure").output("Resource not allowed").build();
+        }
+
+        // Map des ressources autorisées (clé simple -> chemin interne sécurisé)
+        Map<String, String> allowed = new HashMap<>();
+        allowed.put("tom", "images/tom.png");
+        allowed.put("jerry", "images/jerry.png");
+        // si besoin ajouter d'autres images sûres explicitement
+
+        // On accepte soit la clé (tom / jerry) soit le chemin exact autorisé
+        String resource = null;
+        if (allowed.containsKey(decoded)) {
+            resource = allowed.get(decoded);
+        } else {
+            // autoriser l'utilisation des chemins exacts figurant dans la whitelist
+            for (String path : allowed.values()) {
+                if (path.equals(decoded)) {
+                    resource = path;
+                    break;
+                }
+            }
+        }
+
+        if (resource == null) {
+            // tentative d'accès à une ressource non whitelistée
+            System.out.println("Blocked resource request: " + decoded);
+            return failed(this).feedback("ssrf.failure").output("<img class=\"image\" alt=\"Silly Cat\" src=\"images/cat.jpg\">").build();
+        }
+
+        // Construire la sortie en pointant vers la ressource interne autorisée
+        StringBuilder html = new StringBuilder();
+        if ("images/tom.png".equals(resource)) {
+            html.append("<img class=\"image\" alt=\"Tom\" src=\"images/tom.png\" width=\"25%\" height=\"25%\">");
+            return failed(this).feedback("ssrf.tom").output(html.toString()).build();
+        } else if ("images/jerry.png".equals(resource)) {
+            html.append("<img class=\"image\" alt=\"Jerry\" src=\"images/jerry.png\" width=\"25%\" height=\"25%\">");
+            return success(this).feedback("ssrf.success").output(html.toString()).build();
+        } else {
+            html.append("<img class=\"image\" alt=\"Silly Cat\" src=\"images/cat.jpg\">");
+            return failed(this).feedback("ssrf.failure").output(html.toString()).build();
+        }
+
+    } catch (Exception e) {
+        e.printStackTrace();
+        return failed(this).output(e.getMessage()).build();
+    }
+}
+```
+
+De la même manière que sur l'exemple précédent, on vérifie le schéma de l’URL, on bloque les IP internes après résolution DNS, on désactive les redirections, on impose un timeout, et on gère proprement les erreurs. Ces protections empêchent l’accès aux ressources internes et bloquent les vecteurs classiques de SSRF.
 
 # Conclusion
 

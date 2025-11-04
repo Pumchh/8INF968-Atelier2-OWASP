@@ -1,4 +1,4 @@
-# A06:2021 — VULNERABLE AND OUTDATED COMPONENTS
+# A06 — VULNERABLE AND OUTDATED COMPONENTS
 **Définition (A06)**  
 A06 concerne les risques liés à l’utilisation de composants logiciels vulnérables, obsolètes ou mal entretenus (bibliothèques, frameworks, modules, images conteneurs, OS, runtimes). Un composant vulnérable intégré à une application peut permettre à un attaquant d’exploiter une faille dans ce composant et d’obtenir un impact élevé (RCE, fuite de données, élévation de privilèges), même si le code applicatif lui-même est correct.
 
