@@ -105,7 +105,7 @@ Les tests ont été réalisés dans des environnements isolés (bWAPP, DVWA, Web
   - Validation : vérifier la correction par des tests de régression et documenter les preuves.- 
   - Reporting : consigner les tests, preuves et recommandations dans le rapport.
 
-# A01 - Broken Access Control
+# A01 — Broken Access Control
 
 ## Présentation
 
@@ -236,7 +236,7 @@ En tant que User A, le fait de tenter de modifier la ressource de User B fais qu
 Les problèmes de Broken Access Control identifiés proviennent d'un manque de vérification d'ownership et de l'utilisation d'identifiants prévisibles. La résolution nécessite une remise en place systématique des contrôles côté serveur, l'utilisation d'identifiants opaques, la centralisation de la logique d'autorisation, la protection des cookies et des sessions par signature et flags sécurisés, la journalisation détaillée des accès et la mise en place de tests et d'alertes. En appliquant ces mesures, on réduit significativement le risque d'énumération, de prise de contrôle de session et de modifications non autorisées de ressources appartenant à d'autres utilisateurs.
 
 
-# A02 - Cryptographic Failures
+# A02 — Cryptographic Failures
 
 ## Intro
 
@@ -809,7 +809,7 @@ if( ( is_numeric( $octet[0] ) )
 ```
 Comme on veut recevoir une ip, et qu'elle a toujours la même forme int.int.int.int, on va essayer de couper au niveau des ```.``` ce qu'on reçoit en morceaux. S'il y a exactement 4 morceaux et qu'ils contiennent tous des entiers, alors seulement on exécute la commande voulue.
 
-# A04 - Insecure Design
+# A04 — Insecure Design
 
 ## Présentation
 Une faille d’Insecure Design survient quand une protection n’a pas été pensée dès la conception : la logique métier ou l’architecture laisse des possibilités d’abus (on fait confiance au client, pas au serveur).  
@@ -1713,7 +1713,6 @@ Processus recommandé pour une organisation : inventaire continu (SBOM), alertin
 
 
 # A07 — Identification and Authentication
-
 ## Présentation
 
 ### Description
@@ -2056,8 +2055,7 @@ Snippets de code corrigés (HMAC JSON example, transaction SQL example).
 
 
 
-# A09 – Security Logging and Monitoring Failures
-
+# A09 — Security Logging and Monitoring Failures
 ## Introduction
 Cette catégorie regroupe les failles liées à l’absence ou à l’insuffisance de journalisation et de surveillance des activités de sécurité dans les applications et serveurs.
 Elle occupe cette position car la détection et la réponse aux attaques sont souvent négligées, bien que cruciales pour la traçabilité, la visibilité et la gestion des incidents.
@@ -2461,8 +2459,7 @@ function secure_log($event_type, $details) {
 L’audit confirme une vulnérabilité A09:2021 sur bWAPP, avec une journalisation incomplète, vulnérable à l’injection et à la suppression, rendant la détection d’incidents inefficace.
 
 
-# A10 - Server Side Request Forgery
-
+# A10 — Server Side Request Forgery
 ## Présentation
 
 ### Description
